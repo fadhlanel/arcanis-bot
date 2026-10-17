@@ -1,0 +1,114 @@
+const { isAdmin } = require('../lib/isAdmin');
+
+// Function to handle manual promotions via command
+async function promoteCommand(sock, chatId, mentionedJids, message) {
+    let userToPromote = [];
+    
+    // Check for mentioned users
+    if (mentionedJids && mentionedJids.length > 0) {
+        userToPromote = mentionedJids;
+    }
+    // Check for replied message
+    else if (message.message?.extendedTextMessage?.contextInfo?.participant) {
+        userToPromote = [message.message.extendedTextMessage.contextInfo.participant];
+    }
+    
+    // If no user found through either method
+    if (userToPromote.length === 0) {
+        await sock.sendMessage(chatId, { 
+            text: 'Mention user or reply to their message'
+        });
+        return;
+    }
+
+    try {
+        // WhatsApp may provide @lid mentions; group update requires participant JIDs.
+        const metadata = await sock.groupMetadata(chatId);
+        const participants = metadata.participants || [];
+        userToPromote = userToPromote.map(jid => {
+            const participant = participants.find(p =>
+                [p.id, p.lid, p.phoneNumber, p.pn].filter(Boolean).includes(jid)
+            );
+            return participant?.id || participant?.phoneNumber || participant?.pn;
+        }).filter(jid => typeof jid === 'string' && jid.includes('@'));
+        if (!userToPromote.length) {
+            await sock.sendMessage(chatId, { text: 'User not found. Try mentioning or replying' }, { quoted: message });
+            return;
+        }
+        await sock.groupParticipantsUpdate(chatId, userToPromote, "promote");
+        
+        // Get usernames for each promoted user
+        const usernames = await Promise.all(userToPromote.map(async jid => {
+            
+            return `@${jid.split('@')[0]}`;
+        }));
+
+        // Get promoter's name (the bot user in this case)
+        const promoterJid = sock.user?.id || sock.user?.lid || 'bot';
+        
+        const promotionMessage = `PROMOTED
+
+User${userToPromote.length > 1 ? 's' : ''}:
+${usernames.map(name => `• ${name}`).join('\n')}
+
+By: @${promoterJid.split('@')[0]}
+Date: ${new Date().toLocaleString()}`;
+        
+        await sock.sendMessage(chatId, { 
+            text: promotionMessage,
+            mentions: [...userToPromote, promoterJid]
+        });
+    } catch (error) {
+        console.error('Error in promote command:', error);
+        await sock.sendMessage(chatId, { text: 'Failed to promote user'});
+    }
+}
+
+// Function to handle automatic promotion detection
+async function handlePromotionEvent(sock, groupId, participants, author) {
+    try {
+        // Safety check for participants
+        if (!Array.isArray(participants) || participants.length === 0) {
+            return;
+        }
+
+        // Get usernames for promoted participants
+        const promotedUsernames = await Promise.all(participants.map(async jid => {
+            // Handle case where jid might be an object or not a string
+            const jidString = typeof jid === 'string' ? jid : (jid.id || jid.toString());
+            return `@${jidString.split('@')[0]} `;
+        }));
+
+        let promotedBy;
+        let mentionList = participants.map(jid => {
+            // Ensure all mentions are proper JID strings
+            return typeof jid === 'string' ? jid : (jid.id || jid.toString());
+        });
+
+        if (author && author.length > 0) {
+            // Ensure author has the correct format
+            const authorJid = typeof author === 'string' ? author : (author.id || author.toString());
+            promotedBy = `@${authorJid.split('@')[0]}`;
+            mentionList.push(authorJid);
+        } else {
+            promotedBy = 'System';
+        }
+
+        const promotionMessage = `PROMOTED
+
+User${participants.length > 1 ? 's' : ''}:
+${promotedUsernames.map(name => `• ${name}`).join('\n')}
+
+By: ${promotedBy}
+Date: ${new Date().toLocaleString()}`;
+        
+        await sock.sendMessage(groupId, {
+            text: promotionMessage,
+            mentions: mentionList
+        });
+    } catch (error) {
+        console.error('Error handling promotion event:', error);
+    }
+}
+
+module.exports = { promoteCommand, handlePromotionEvent };
