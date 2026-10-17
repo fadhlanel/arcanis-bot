@@ -1,224 +1,144 @@
-# 🤖 Knight Bot
-
-This is a WhatsApp bot built using the Baileys library for group management, including features like tagging all members, muting/unmuting, and many more. It's designed to help admins efficiently manage WhatsApp groups.
-
-<div align="center"> 
-  <a href="https://git.io/typing-svg"> 
-    <img src="https://readme-typing-svg.demolab.com?font=Ribeye&size=50&pause=1000&color=33ff00&center=true&width=910&height=100&lines=Knight-Bot;Multi+Device+Whatsapp+Bot;Coded+By+Professor" alt="Typing SVG" />
-  </a> 
-</div> 
+# ARCANIS BOT
 
 <div align="center">
-  <img src="assets/bot_image.jpg" alt="Bot" height="300">
+  <img src="https://readme-typing-svg.demolab.com?font=Ribeye&size=50&pause=1000&color=8A2BE2&center=true&vCenter=true&width=900&height=100&lines=ARCANIS+BOT;WhatsApp+Multi-Device+Bot;Baileys+Powered" alt="ARCANIS BOT" />
 </div>
-
----
-<div>
-  <a href="https://www.rapidproxy.io/?ref=Knightbot" target="_blank">
-    <img src="assets/rapid.jpg" alt="RapidProxy" width="100%" />
-  </a>
-</div>
-
-<br>
-
-<div align="left">
-  <a href="https://www.rapidproxy.io/?ref=Knightbot" target="_blank"><b>RapidProxy</b></a> delivers fast, reliable proxy infrastructure for large-scale data operations. With high concurrency, non-expiring traffic, and AI-powered CAPTCHA bypass, it ensures efficient, uninterrupted data collection—trusted by developers worldwide.<br><br>
-  90M+ Residential IPs • Smart Rotation • High Success Rate • Built for Scale<br><br>
-  <b>Special Offer:</b> <a href="https://www.rapidproxy.io/?ref=Knightbot" target="_blank">Try it free</a> — Pricing from $0.65/GB with non-expiring traffic. Use code <b>RAPID10</b> for 10% off.
-</div>
-
-<br>
-
-<div align="left">
-  <a href="https://www.rapidproxy.io/?ref=Knightbot" target="_blank">
-    <img src="https://img.shields.io/badge/Try now-28a745?style=for-the-badge" alt="Try now"/>
-  </a>
-</div>
-
-
-## 🚀 Steps to Deploy Bot
-
-### Step 1: Local Deployment
-
-Project runs as local customized deployment. No repository fork required.
-
----
-
-### Step 2: Get Pair Code
-
-Deploy the bot and easily connect it to your WhatsApp account by pair code. Click the button below to deploy the bot on Replit.
-
-<div align="center">
-  <a href="https://knight-bot-paircode.onrender.com" target="_blank">
-    <img src="https://img.shields.io/badge/GET%20PAIR%20CODE-Easy%20Method-ff4d4d?style=for-the-badge" alt="Generate Pair Code"/>
-  </a>
-</div>
-
-
-### After getting creds.json file, upload it to session folder
-
----
-
-### Step 3: Deploy Now
-
-For further customization and setup guidance, click the button below:
-
-<div align="center">
-  <a href="https://youtu.be/-oz_u1iMgf8">
-    <img src="https://img.shields.io/badge/Deploy Tutorial-dc3545?style=for-the-badge&logo=youtube" alt="YouTube Link"/>
-  </a>
-  <a href="https://bot-hosting.net/?aff=1068419752923508776">
-    <img src="https://img.shields.io/badge/Deploy on Panel-28a745?style=for-the-badge" alt="Deploy on Panel"/>
-  </a>
-</div>
-
-### Deploy on VPS
-
-<div align="center">
-  <a href="https://client.petrosky.io/aff.php?aff=394" target="_blank">
-    <img src="https://img.shields.io/badge/petrosky vps-0078E7?style=for-the-badge" alt="petrosky vps"/>
-  </a>
-</div>
-
-### Deploy on Below Panel
-<div align="center">
-<a href="https://dashboard.katabump.com/auth/login#d6b7d6" target="_blank">
-  <img src="https://img.shields.io/badge/Katabump-D6B7D6?style=for-the-badge&logo=server&logoColor=black" alt="Katabump"/>
-</a>
-</div>
-
-### Join Us
-
-<div align="center">
-  <a href="https://t.me/+3QhFUZHx-nhhZmY1">
-    <img src="https://img.shields.io/badge/Join%20Telegram-0078E7?style=for-the-badge&logo=telegram&logoColor=white" alt="Join Telegram"/>
-  </a>
-  <a href="https://whatsapp.com/channel/0029Va90zAnIHphOuO8Msp3A">
-    <img src="https://img.shields.io/badge/Join%20WhatsApp-25D366?style=for-the-badge&logo=whatsapp&logoColor=white" alt="Join WhatsApp"/>
-  </a>
-</div>
-
----
-
-## ⚙️ Features
-
-- **Tag all group members** with the `.tagall` command
-- **Admin restricted usage** (Only group admins can use certain commands)
-- **Games** like Tic-Tac-Toe for interactive group engagement
-- **Text-to-Speech** with `.tts`
-- **Sticker creation** with `.sticker`
-- **Anti-link detection** for group safety
-- **Warn and manage group members** with admin control
-
----
-
-## 📖 About
-
-The Knight WhatsApp Bot assists group admins by providing them with tools to efficiently manage large WhatsApp groups. The bot uses the Baileys library to interact with the WhatsApp Web API and supports multi-device features.
-
-It is lightweight and can be easily customized to add more commands as per your requirements. The bot runs in a Node.js environment and provides QR code-based authentication to link your WhatsApp account.
-
----
-
-## 🛠️ Setup & Installation
-
-### Prerequisites
-
-- Node.js installed on your system
-
-### Step-by-Step Setup
-
-1. **Install the dependencies** from project folder:
-
-    ```bash
-    npm install
-    ```
-
-2. **Install the dependencies:**
-
-    ```bash
-    npm install
-    ```
-
-3. **Run the bot:**
-
-    ```bash
-    node index.js
-    ```
-
-4. **Scan the QR code:**
-
-    Once the bot starts, a QR code will appear in the terminal. Scan this QR code using the Linked Devices feature in WhatsApp to connect your WhatsApp account with the bot.
-
----
-
-## ☕ Support Me
 
 <div align="center">
 
-<a href="https://buymeacoffee.com/mruniquehacker" target="_blank">
-  <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20Developer-FF813F?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white" alt="Buy Me a Coffee">
-</a>
+WhatsApp multi-device bot for group moderation, media tools, social downloader, stickers, AI, and games.
+
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Baileys](https://img.shields.io/badge/Baileys-Multi--Device-25D366?style=flat-square&logo=whatsapp&logoColor=white)](https://github.com/WhiskeySockets/Baileys)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 
 </div>
 
-If you find this project helpful and want to support the developer, consider buying me a coffee! Your support helps maintain and improve this open-source project.
+## Features
 
-<div align="center">
+- Group moderation: kick, promote, demote, mute, tag, anti-link, anti-tag, anti-badword.
+- Anti-spam with temporary mute, warnings, final warning, and automatic removal.
+- Warning controls: `.warn`, `.warnings`, `.unwarn <jumlah>`.
+- Social media downloader: TikTok, Instagram, Facebook, X/Twitter, YouTube, Pinterest, Threads, Reddit, SoundCloud, Douyin, Bilibili, and more.
+- Universal media commands: `.univmp3 <link>` and `.univmp4 <link>`.
+- Local MP4-to-MP3 conversion through FFmpeg: `.mp4to3` or `.mp4tomp3`.
+- `.mp4to3` supports a URL, a video captioned with command, or a reply to a video.
+- Sticker, image, text effect, utility, AI, and game commands.
 
-<img src="assets/bmc_qr.png" alt="Buy Me a Coffee QR Code" width="200">
+## Requirements
 
-</div>
+- Node.js `>=18`
+- npm
+- FFmpeg with `libmp3lame` encoder for MP4-to-MP3 conversion
+- A WhatsApp account for pairing
 
----
+Verify FFmpeg:
 
-## 📄 License
+```bash
+ffmpeg -version
+ffprobe -version
+ffmpeg -hide_banner -encoders | grep libmp3lame
+```
 
-This project is licensed under the MIT License.
+## Installation
 
----
+```bash
+git clone https://github.com/fadhlanel/arcanis-bot.git
+cd arcanis-bot
+npm install
+```
 
-## 🙌 Contributions
+Copy environment template if needed:
 
-This local deployment does not use remote issue tracking.
+```bash
+cp .env.example .env
+```
 
----
+Set required environment values in `.env`. Never commit `.env`, `session/`, or WhatsApp credentials.
 
-## 🌟 Show your support
+Start bot:
 
-Support and maintenance are handled locally.
+```bash
+npm start
+```
 
+Other scripts:
+
+```bash
+npm run start:optimized
+npm run cleanup
+npm run reset-session
+```
+
+Pair WhatsApp from terminal using QR or pairing flow provided by bot startup.
+
+## Main Commands
+
+| Command | Description |
+|---|---|
+| `.help` / `.menu` | Show command menu |
+| `.ping` / `.alive` | Check bot status |
+| `.tagall <pesan>` | Tag all group members |
+| `.warn @user` | Add warning to user |
+| `.warnings @user` | Check user warnings |
+| `.unwarn 2 @user` | Remove two warnings |
+| `.antilink on/off` | Toggle link moderation |
+| `.antibadword on/off` | Toggle badword moderation |
+| `.univmp3 <link>` | Download direct audio, or convert video to MP3 |
+| `.univmp4 <link>` | Download video from supported platform |
+| `.mp4to3 <link>` | Download and convert video URL to MP3 |
+| `.mp4to3` | Reply to video or send video with this caption to convert |
+| `.play <judul>` / `.song <judul>` | Search and download song |
+| `.video <judul>` | Search and download video |
+| `.sticker` / `.s` | Create sticker from replied media |
+| `.brat <teks> gerak` | Create animated Brat sticker |
+| `.ai <pertanyaan>` | Ask AI |
+
+Use `.help` for complete command list.
+
+## MP4 to MP3
+
+FFmpeg runs locally. Media is stored temporarily in `temp/`, converted, sent back, then cleaned up.
+
+```text
+Reply video: .mp4to3
+Video caption: .mp4to3
+URL: .mp4to3 https://example.com/video.mp4
+```
+
+For social URLs, use `.univmp3 <link>`. Bot tries direct audio first. If no audio exists, bot downloads video and converts it to MP3 with FFmpeg.
+
+## Project Structure
+
+```text
+commands/       Command handlers
+lib/            Shared helpers, media, scraper, FFmpeg utilities
+scrapr-main/    Local @coflyn/scrapr package
+data/           Runtime moderation/configuration data
+session/        WhatsApp session data; do not commit
+temp/           Temporary media files; do not commit
+```
+
+## Security Notes
+
+- Keep `.env` and `session/` private.
+- Do not publish WhatsApp credentials, API keys, phone numbers, or runtime session files.
+- Do not use bot for spam, bulk messaging, harassment, or illegal activity.
+- Apply upload size limits and keep FFmpeg installed only from trusted sources.
+- WhatsApp may restrict or ban accounts for automation. Use at your own risk.
+
+## Legal
+
+ARCANIS BOT is an independent project. It is not affiliated with, endorsed by, or sponsored by WhatsApp or Meta.
+
+Use this project only in compliance with local law, WhatsApp terms, and third-party platform terms.
 
 ## Credits
 
-- Original framework: Baileys
-- Contributors: TechGod143, Dgxeon (pair code)
+- [Baileys](https://github.com/WhiskeySockets/Baileys)
+- [`@coflyn/scrapr`](https://github.com/coflyn/scrapr)
+- Open-source libraries listed in `package.json`
 
----
+## License
 
-## ⚠️ Important Warning
-
-**Note:** This bot is created for educational purposes only. This is NOT an official WhatsApp bot. Using this bot may lead to your WhatsApp account being banned. Use it at your own risk. The developers will not be responsible for any consequences or account bans that may occur while using this bot.
-
-## 📝 Legal
-
-- This project is not affiliated with, authorized, maintained, sponsored or endorsed by WhatsApp or any of its affiliates or subsidiaries.
-- This is an independent and unofficial software. Use at your own risk.
-- Do not spam people with this bot.
-- Do not use this bot to send bulk messages or for illegal purposes.
-- The developers assume no liability and are not responsible for any misuse or damage caused by this program.
-
-### License
-This project is licensed under the MIT License. However, you must:
-- Use this software in compliance with all applicable laws and regulations
-- Include original license and copyright notices
-- Credit original authors
-- Not use for spam or malicious purposes
-
-## 📜 Copyright Notice
-
-Copyright (c) 2024 Professor. All rights reserved.
-
-This project contains code from various open source projects:
-- Baileys (MIT License)
-- Other libraries as listed in package.json
+MIT. Preserve license notices from included dependencies and source material.
