@@ -1,7 +1,7 @@
 # ARCANIS BOT
 
 <div align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=Ribeye&size=50&pause=1000&color=00C2FF&center=true&vCenter=true&width=900&height=100&lines=ARCANIS+BOT;WhatsApp+Multi-Device+Bot;Baileys+Powered" alt="ARCANIS BOT" />
+  <img src="https://readme-typing-svg.demolab.com?font=Orbitron&size=50&pause=1000&color=00C2FF&center=true&vCenter=true&width=900&height=100&lines=ARCANIS+BOT;WhatsApp+Multi-Device+Bot;Baileys+Powered" alt="ARCANIS BOT" />
 </div>
 
 <div align="center">
