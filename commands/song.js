@@ -99,7 +99,13 @@ async function songCommand(sock, chatId, message) {
 		let audioData;
 		let audioBuffer;
 		let downloadSuccess = false;
+		let sourcePlatform = 'youtube'; // Default label
 		
+		// Deteksi platform input langsung (link Spotify, SoundCloud, YouTube)
+		if (text.includes('spotify.com')) sourcePlatform = 'spotify';
+		else if (text.includes('soundcloud.com')) sourcePlatform = 'soundcloud';
+		else if (text.includes('youtube.com') || text.includes('youtu.be')) sourcePlatform = 'youtube';
+
 		// List of API methods to try
 		const apiMethods = [{
             name: 'Siputzx',
@@ -255,14 +261,15 @@ async function songCommand(sock, chatId, message) {
 			}
 		}
 		
-		// Last fallback: every registered scrapr-main YouTube audio scraper.
+		// Last fallback: every registered scrapr-main YouTube audio scraper with explicit format.
 		if (!downloadSuccess || !audioBuffer) {
 			log('youtube', 'FALLBACK', 'song APIs failed; trying scrapr-main');
-			const fallback = await scrapeUrl('youtube', cleanVideoUrl);
+			const fallback = await scrapeUrl('youtube', cleanVideoUrl, ['mp3']);
 			const audio = fallback.downloads.find(item => /audio|mp3|m4a/i.test(String(item.type || '') + item.url));
 			if (!audio?.url) throw new Error('All download sources failed. The content may be unavailable or blocked.');
 			audioBuffer = (await downloadBuffer(audio.url, { platform: 'youtube', expectedType: 'audio' })).buffer;
 			audioData = { title: fallback.title || video.title };
+			sourcePlatform = 'youtube';
 		}
 
 		// Validate buffer
@@ -277,6 +284,7 @@ async function songCommand(sock, chatId, message) {
 			fileName: `${(audioData.title || video.title || 'song').replace(/[^\w\s-]/g, '')}.mp3`,
 			ptt: false
 		}, { quoted: message });
+		await sock.sendMessage(chatId, { text: `✅ Selesai! Sumber: ${sourcePlatform.toUpperCase()}` }, { quoted: message });
 
     } catch (err) {
         console.error('[Song] Command error:', err.message);

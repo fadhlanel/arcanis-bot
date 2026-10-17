@@ -172,7 +172,7 @@ async function videoCommand(sock, chatId, message) {
         // Last fallback: all registered scrapr-main YouTube scrapers.
         if (!downloadSuccess || !videoData) {
             log('youtube', 'FALLBACK', 'video APIs failed; trying scrapr-main');
-            const fallback = await scrapeUrl('youtube', videoUrl);
+            const fallback = await scrapeUrl('youtube', videoUrl, ['mp4']);
             const videos = fallback.downloads.filter(item => item?.url && (/video|mp4/i.test(String(item.type || '') + item.url)));
             const video = videos.sort((a, b) => {
                 const resolution = item => {
