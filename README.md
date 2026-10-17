@@ -1,7 +1,7 @@
 # ARCANIS BOT
 
 <div align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=Ribeye&size=50&pause=1000&color=8A2BE2&center=true&vCenter=true&width=900&height=100&lines=ARCANIS+BOT;WhatsApp+Multi-Device+Bot;Baileys+Powered" alt="ARCANIS BOT" />
+  <img src="https://readme-typing-svg.demolab.com?font=Ribeye&size=50&pause=1000&color=00C2FF&center=true&vCenter=true&width=900&height=100&lines=ARCANIS+BOT;WhatsApp+Multi-Device+Bot;Baileys+Powered" alt="ARCANIS BOT" />
 </div>
 
 <div align="center">
@@ -16,14 +16,68 @@ WhatsApp multi-device bot for group moderation, media tools, social downloader, 
 
 ## Features
 
-- Group moderation: kick, promote, demote, mute, tag, anti-link, anti-tag, anti-badword.
-- Anti-spam with temporary mute, warnings, final warning, and automatic removal.
-- Warning controls: `.warn`, `.warnings`, `.unwarn <jumlah>`.
-- Social media downloader: TikTok, Instagram, Facebook, X/Twitter, YouTube, Pinterest, Threads, Reddit, SoundCloud, Douyin, Bilibili, and more.
-- Universal media commands: `.univmp3 <link>` and `.univmp4 <link>`.
-- Local MP4-to-MP3 conversion through FFmpeg: `.mp4to3` or `.mp4tomp3`.
-- `.mp4to3` supports a URL, a video captioned with command, or a reply to a video.
-- Sticker, image, text effect, utility, AI, and game commands.
+### Group Moderation
+
+- Member controls: `.kick`, `.ban`, `.unban`, `.promote`, `.demote`.
+- Group controls: `.mute`, `.unmute`, `.grouplock`, `.groupunlock`, `.setgname`, `.setgdesc`, `.setgpp`.
+- Mention tools: `.tagall`, `.tag`, `.hidetag`, `.tagnotadmin`.
+- Warning system: `.warn @user`, `.warnings @user`, `.unwarn <jumlah> @user`.
+- Warning flow: first and second spam warning mute for 10 minutes, third warning mutes for 1 hour, fourth warning removes member.
+
+### Group Protection
+
+- `.antilink on/off` blocks prohibited links.
+- `.antibadword on/off` filters configured bad words.
+- `.antispam` detects message floods, deletes muted-user messages, and records warnings.
+- `.antitag on/off` helps limit abusive mass mentions.
+- `.welcome on/off` and `.goodbye on/off` manage member event messages.
+- `.antidelete on/off` stores deleted messages when enabled.
+
+### Media Downloader
+
+- Supported social platforms include TikTok, Instagram, Facebook, X/Twitter, YouTube, Pinterest, Threads, Reddit, Pixiv, RedNote/Xiaohongshu, SoundCloud, Douyin, Bilibili, Bandcamp, Spotify, Apple Music, and Terabox.
+- Platform commands: `.tiktok`, `.instagram`, `.facebook`, `.twitter`, `.ytmp4`, `.pinterest`, `.threads`, `.reddit`, `.soundcloud`, and others.
+- `.univmp4 <link>` downloads video from a supported social URL.
+- `.univmp3 <link>` tries direct audio first. If unavailable, bot downloads video and converts it to MP3 locally.
+- `.play <judul>`, `.song <judul>`, and `.video <judul>` search YouTube media with fallback download sources.
+
+### Local MP4 to MP3
+
+- `.mp4to3 <link>` or `.mp4tomp3 <link>` downloads and converts a supported video URL.
+- Reply to a WhatsApp video with `.mp4to3` to convert it.
+- Send video with caption `.mp4to3` to convert it directly.
+- Uses local FFmpeg and `libmp3lame`; temporary files are cleaned after delivery.
+
+### Stickers, Images, and Effects
+
+- `.sticker` / `.s` creates sticker from replied media.
+- `.simage`, `.take`, `.crop`, and `.tgsticker` handle sticker conversion and metadata.
+- `.blur`, `.removebg`, `.remini`, and `.emojimix` provide image tools.
+- `.brat <teks> gerak` creates animated Brat sticker.
+- Text and image effects include `.attp`, `.metallic`, `.ice`, `.neon`, `.fire`, `.glitch`, `.matrix`, `.wasted`, and more.
+
+### AI and Utilities
+
+- `.ai`, `.gpt`, and `.gemini` provide AI prompts.
+- `.translate` / `.trt` translates text.
+- `.ss <url>` captures website screenshot.
+- `.url` uploads replied media and returns a URL.
+- `.vv` reads view-once media.
+- `.ping`, `.alive`, `.jid`, `.groupinfo`, `.staff`, and `.settings` provide diagnostics and information.
+
+### Games and Entertainment
+
+- Tic-tac-toe: `.tictactoe`, `.ttt`, and `.move`.
+- Word and quiz games: `.hangman`, `.guess`, `.trivia`, `.answer`.
+- Social commands: `.truth`, `.dare`, `.8ball`, `.ship`, `.compliment`, `.insult`.
+- Anime actions, GIFs, character cards, memes, and text effects.
+
+### Owner Automation
+
+- `.mode public/private` sets bot access mode.
+- `.sudo add/remove @user` manages sudo users.
+- `.autotyping`, `.autoread`, `.autoreact`, `.autostatus` manage automated behavior.
+- `.pmblocker`, `.anticall`, `.cleartmp`, `.clearsession`, and `.setpp` manage bot operations.
 
 ## Requirements
 
