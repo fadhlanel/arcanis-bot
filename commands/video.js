@@ -1,5 +1,6 @@
 const axios = require('axios');
 const yts = require('yt-search');
+const { toVideo } = require('../lib/converter');
 const { scrapeUrl, downloadBuffer, log } = require('../lib/scraprDownloader');
 
 const KNIGHTBOT_API = 'https://knightbotapi.stream/api/download/ytmp4';
@@ -174,25 +175,41 @@ async function videoCommand(sock, chatId, message) {
             log('youtube', 'FALLBACK', 'video APIs failed; trying scrapr-main');
             const fallback = await scrapeUrl('youtube', videoUrl, ['mp4']);
             const videos = fallback.downloads.filter(item => item?.url && (/video|mp4/i.test(String(item.type || '') + item.url)));
-            const video = videos.sort((a, b) => {
+            const picked = videos.sort((a, b) => {
                 const resolution = item => {
                     const match = String(item.quality || item.resolution || item.type || '').match(/(\d{3,4})p/i);
                     return match ? Number(match[1]) : 0;
                 };
                 return resolution(b) - resolution(a);
             })[0] || videos[0];
-            if (!video?.url) throw new Error('All download sources failed. The content may be unavailable or blocked in your region.');
-            videoData = { download: video.url, title: fallback.title || videoTitle, format: video.quality || video.resolution || 'highest' };
+            if (!picked?.url) throw new Error('All download sources failed. The content may be unavailable or blocked in your region.');
+            videoData = { download: picked.url, title: fallback.title || videoTitle, format: picked.quality || picked.resolution || 'highest' };
             log('youtube', 'RESOLUTION', `selected=${videoData.format}`);
         }
 
-        // Send video directly using the download URL
-        await sock.sendMessage(chatId, {
-            video: { url: videoData.download || videoData.dl || videoData.url },
-            mimetype: 'video/mp4',
-            fileName: `${(videoData.title || videoTitle || 'video').replace(/[^\w\s-]/g, '')}.mp4`,
-            caption: `*${videoData.title || videoTitle || 'Video'}*\n📺 ${videoData.format || quality}\n\n> *_Downloaded by ARCANIS BOT MD_*`
-        }, { quoted: message });
+        // Send video with retry (link bisa expired/IP-bound)
+        const vidUrl = videoData.download || videoData.dl || videoData.url;
+        let sendSuccess = false;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                log('youtube', 'SEND_ATTEMPT', `attempt=${attempt} url=${vidUrl.slice(0, 80)}`);
+                const vidBuffer = await downloadBuffer(vidUrl, { platform: 'youtube', timeout: 120000, expectedType: 'video', referer: 'https://www.youtube.com/' });
+                let finalBuffer = vidBuffer.buffer;
+                try { finalBuffer = await toVideo(finalBuffer, 'mp4'); } catch (convErr) { console.log(`[VIDEO] toVideo failed, kirim raw: ${convErr.message}`); }
+                await sock.sendMessage(chatId, {
+                    video: finalBuffer,
+                    mimetype: 'video/mp4',
+                    fileName: `${(videoData.title || videoTitle || 'video').replace(/[^\w\s-]/g, '')}.mp4`,
+                    caption: `*${videoData.title || videoTitle || 'Video'}*\n📺 ${videoData.format || quality}\n\n> *_Downloaded by ARCANIS BOT MD_*`
+                }, { quoted: message });
+                sendSuccess = true;
+                break;
+            } catch (retryErr) {
+                log('youtube', 'SEND_RETRY', `attempt=${attempt} error=${retryErr.message}`);
+                if (attempt < 3) await new Promise(r => setTimeout(r, 2000 * attempt));
+            }
+        }
+        if (!sendSuccess) throw new Error('Video download failed after 3 retries. Link may have expired.');
 
 
     } catch (error) {
