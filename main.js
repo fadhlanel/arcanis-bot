@@ -164,6 +164,7 @@ const { anticallCommand, readState: readAnticallState } = require('./commands/an
 const { pmblockerCommand, readState: readPmBlockerState } = require('./commands/pmblocker');
 const settingsCommand = require('./commands/settings');
 const soraCommand = require('./commands/sora');
+const updateCommand = require('./commands/update');
 
 // Global settings
 global.packname = settings.packname;
@@ -1234,8 +1235,12 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 commandExecuted = true;
                 break;
             case userMessage.startsWith('.update'):
-                await sock.sendMessage(chatId, { text: '❌ Update eksternal dinonaktifkan.' }, { quoted: message });
-                commandExecuted = true;
+                {
+                    const parts = rawText.trim().split(/\s+/);
+                    const args = parts.slice(1);
+                    await updateCommand(sock, chatId, message, args);
+                    commandExecuted = true;
+                }
                 break;
             case userMessage.startsWith('.removebg') || userMessage.startsWith('.rmbg') || userMessage.startsWith('.nobg'):
                 await removebgCommand.exec(sock, message, userMessage.split(' ').slice(1));
