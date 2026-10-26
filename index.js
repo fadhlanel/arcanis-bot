@@ -44,7 +44,7 @@ const qrcode = require("qrcode-terminal")
 const banner = require("./lib/banner")
 const { parsePhoneNumber } = require("libphonenumber-js")
 const { PHONENUMBER_MCC } = require('@whiskeysockets/baileys/lib/Utils/generics')
-const { rmSync, existsSync } = require('fs')
+const { rmSync, existsSync, readFileSync, writeFileSync } = require('fs')
 const { join } = require('path')
 
 // Import lightweight store
@@ -103,20 +103,93 @@ const question = (text) => {
     }
 }
 
-// Resolve nomor BOT untuk pairing. TIDAK PERNAH memakai ownerNumber —
+const MAX_NUMBER_INPUT_ATTEMPTS = 3
+
+// Nomor bisa diberikan lewat CLI/startup command:
+//   npm start -- 6281234567890
+//   npm start -- --number=6281234567890
+//   npm start -- --number 6281234567890
+//   node index.js 6281234567890
+function readCliBotNumber(argv = process.argv.slice(2)) {
+    for (let i = 0; i < argv.length; i++) {
+        const arg = String(argv[i] || '')
+        if (arg.startsWith('--number=')) {
+            return arg.slice('--number='.length)
+        }
+        if (arg === '--number' && argv[i + 1]) {
+            return argv[i + 1]
+        }
+        // Positional: argumen pertama yang bentuknya nomor polos
+        if (/^\d{7,15}$/.test(arg)) return arg
+    }
+    return ''
+}
+
+// Sumber raw nomor BOT untuk pairing. TIDAK PERNAH memakai ownerNumber —
 // akun bot dan akun owner adalah nomor yang berbeda.
+// Urutan prioritas: argumen CLI -> env BOT_NUMBER -> settings.botNumber.
+function readRawBotNumber() {
+    return String(readCliBotNumber() || process.env.BOT_NUMBER || settings.botNumber || '').replace(/\s+/g, '')
+}
+
+// Samarkan nomor untuk log (5 pertama + titik + 2 terakhir)
+function maskBotNumber(number) {
+    const digits = String(number || '')
+    if (digits.length < 7) return digits
+    return digits.slice(0, 5) + '•'.repeat(Math.max(digits.length - 7, 0)) + digits.slice(-2)
+}
+
+// Resolve + validasi nomor BOT. Bila kosong di terminal interaktif,
+// tanya ulang sampai valid (maks MAX_NUMBER_INPUT_ATTEMPTS percobaan).
 async function resolveBotNumber() {
-    let raw = process.env.BOT_NUMBER || settings.botNumber || ''
-    if (!raw && rl) {
-        raw = await question(chalk.bgBlack(chalk.greenBright(`Masukkan nomor WhatsApp BOT \nFormat: 6281234567890 (tanpa + atau spasi) : `)))
+    let raw = readRawBotNumber()
+    let attempts = 0
+    while (attempts < MAX_NUMBER_INPUT_ATTEMPTS) {
+        const digits = String(raw || '').replace(/[^0-9]/g, '')
+        if (!digits && rl) {
+            attempts++
+            raw = await question(chalk.bgBlack(chalk.greenBright(
+                attempts === 1
+                    ? 'Masukkan nomor WhatsApp BOT \nFormat: 6281234567890 (tanpa + atau spasi) : '
+                    : `Nomor masih kosong. Coba lagi (${attempts}/${MAX_NUMBER_INPUT_ATTEMPTS}) : `
+            )))
+            continue
+        }
+        if (!digits) return ''
+        if (!PhoneNumber('+' + digits).isValid()) {
+            console.log(chalk.red(`Nomor bot tidak valid: ${digits}. Format internasional tanpa + atau spasi, contoh: 6281234567890.`))
+            if (!rl) return ''
+            attempts++
+            raw = await question(chalk.bgBlack(chalk.greenBright(`Nomor tidak valid. Coba lagi (${attempts}/${MAX_NUMBER_INPUT_ATTEMPTS}) : `)))
+            continue
+        }
+        return digits
     }
-    const number = String(raw || '').replace(/[^0-9]/g, '')
-    if (!number) return ''
-    if (!PhoneNumber('+' + number).isValid()) {
-        console.log(chalk.red(`Nomor bot tidak valid: ${number}. Format internasional tanpa + atau spasi, contoh: 6281234567890.`))
-        return ''
+    return ''
+}
+
+// Tawarkan simpan nomor hasil input manual ke .env agar tidak ketik ulang
+// saat restart (hanya jika .env/the env belum memuat nomor tersebut).
+async function maybeSaveBotNumberEnv(number) {
+    if (!rl) return
+    if (String(process.env.BOT_NUMBER || '').replace(/[^0-9]/g, '') === number) return
+    if (readCliBotNumber()) return // asalnya CLI/startup command — tidak perlu disimpan
+    try {
+        const answer = String(await question(chalk.bgBlack(chalk.greenBright('Simpan nomor ini ke .env agar tidak ketik ulang saat restart? (y/N): ')))).trim().toLowerCase()
+        if (answer !== 'y' && answer !== 'yes') return
+        const envPath = join(__dirname, '.env')
+        let content = existsSync(envPath) ? readFileSync(envPath, 'utf8') : ''
+        const line = `BOT_NUMBER=${number}`
+        const re = /^[ \t]*BOT_NUMBER[ \t]*=.*$/m
+        content = re.test(content)
+            ? content.replace(re, line)
+            : (content.trim() ? content.trimEnd() + '\n' : '') + line + '\n'
+        writeFileSync(envPath, content, 'utf8')
+        process.env.BOT_NUMBER = number
+        console.log(chalk.green(`💾 Disimpan: BOT_NUMBER=${number} di .env`))
+    } catch (err) {
+        console.log(chalk.yellow(`Tidak bisa menulis .env: ${err?.message || err}. Set BOT_NUMBER manual.`))
     }
-    return number
 }
 
 
@@ -130,20 +203,26 @@ async function startXeonBotInc() {
         // membuka koneksi WhatsApp tanpa nomor akun yang dikonfigurasi.
         let pairingNumber = ''
         if (!useQrMode && !state.creds.registered) {
-            const rawNumber = String(process.env.BOT_NUMBER || settings.botNumber || '').replace(/[^0-9]/g, '')
-            if (!rawNumber) {
-                // Banner tampil di tahap "masukkan nomor WhatsApp"
-                banner.printPairingSetup({ botNumber: '', ownerNumber: settings.ownerNumber })
+            if (!readRawBotNumber()) {
+                // Banner tampil di tahap "masukkan nomor WhatsApp";
+                // di terminal interaktif banner menandai MENUNGGU INPUT, bukan peringatan env.
+                banner.printPairingSetup({ botNumber: '', ownerNumber: settings.ownerNumber, interactive: !!rl })
             }
             pairingNumber = await resolveBotNumber()
             if (!pairingNumber) {
                 console.log(chalk.red('❌ Nomor WhatsApp BOT belum diisi. Bot tidak membuka koneksi WhatsApp.'))
-                console.log(chalk.yellow('1. Isi env BOT_NUMBER dengan nomor akun WA BOT, contoh: 6281234567890 (tanpa + atau spasi).'))
-                console.log(chalk.yellow('2. BOT_NUMBER ≠ OWNER_NUMBER. Jangan isi nomor owner di sini.'))
-                console.log(chalk.yellow('3. Restart server setelah mengisi.'))
+                if (rl) {
+                    console.log(chalk.yellow('1. Jalankan ulang lalu ketik nomornya saat prompt muncul (maks 3 percobaan).'))
+                    console.log(chalk.yellow('2. Atau isi BOT_NUMBER di .env / env panel.'))
+                } else {
+                    console.log(chalk.yellow('1. Terminal ini tidak interaktif (panel/PM2/log runner) — prompt tidak bisa muncul.'))
+                    console.log(chalk.yellow('2. Isi BOT_NUMBER di env panel ATAU letakkan nomor di startup command: npm start -- 6281234567890.'))
+                }
+                console.log(chalk.yellow('3. BOT_NUMBER ≠ OWNER_NUMBER. Jangan isi nomor owner di sini.'))
                 return null
             }
-            console.log(chalk.cyan('🔑 Pairing code akan dikirim untuk nomor bot:') + ' ' + chalk.green(pairingNumber))
+            console.log(chalk.cyan('🔑 Pairing code akan dikirim untuk nomor bot:') + ' ' + chalk.green(maskBotNumber(pairingNumber)))
+            await maybeSaveBotNumberEnv(pairingNumber)
         } else if (useQrMode) {
             console.log(chalk.yellow('📱 Mode QR aktif. QR akan ditampilkan setelah koneksi siap.'))
         } else {

@@ -97,11 +97,11 @@ npm install
 
 ## Configuration
 
-Create `.env` next to `settings.js`. All values are optional except `BOT_NUMBER`.
+Create `.env` next to `settings.js`. All values are optional — `BOT_NUMBER` can also be typed at the terminal prompt or passed as a start argument (see [Pairing](#pairing-your-account)).
 
 | Variable | Required | Description |
 | --- | :---: | --- |
-| `BOT_NUMBER` | ✅ | The bot's WhatsApp number, digits only (e.g. `62812xxxxxxx`, country code first, no `+` or spaces). Left empty, the bot will not connect. |
+| `BOT_NUMBER` | ➖ | The bot's WhatsApp number, digits only (e.g. `62812xxxxxxx`, country code first, no `+` or spaces). **Optional in an interactive terminal** — the bot asks for the number at first pairing and can save it to `.env` for you. Required on hosting panels (their console is non-interactive), there set it in env or use the start command `npm start -- 628…`. |
 | `OWNER_NUMBER` | ➖ | Your personal number, digits only. Gets owner privileges across commands. |
 | `PAIRING_MODE` | ➖ | Set to `qr` to pair by scanning a QR code instead of the default fixed pairing code. |
 | `NO_ANSI` / `NO_COLOR` | ➖ | Set to `1` to print plain banners without ANSI escape codes (useful for panels or log files). |
@@ -136,7 +136,10 @@ Notes:
 
 The default mode uses pairing code **`ARCANISS`**:
 
-1. Set `BOT_NUMBER` in `.env`, then `npm start`.
+1. Supply the bot number — any of these:
+   - **Interactive terminal**: `npm start`; when the pairing panel shows `MENUNGGU INPUT`, type the number (validated, up to 3 tries). The bot then offers to save it to `.env` for future restarts.
+   - **Startup command / CLI** (works even in non-interactive panel consoles): `npm start -- 6281234567890`, or `npm start -- --number=6281234567890`.
+   - **Environment**: `BOT_NUMBER=6281234567890` in `.env` or the panel's environment variables.
 2. The pairing panel prints the fixed code:
 
    <div align="center">

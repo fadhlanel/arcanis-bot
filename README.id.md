@@ -97,11 +97,11 @@ npm install
 
 ## Konfigurasi
 
-Buat `.env` di samping `settings.js`. Semua nilai opsional kecuali `BOT_NUMBER`.
+Buat `.env` di samping `settings.js`. Semua nilai opsional — `BOT_NUMBER` juga bisa diketik di prompt terminal atau lewat argumen start (lihat [Pairing akun](#pairing-akun)).
 
 | Variabel | Wajib | Deskripsi |
 | --- | :---: | --- |
-| `BOT_NUMBER` | ✅ | Nomor WhatsApp bot, hanya angka (mis. `62812xxxxxxx`, kode negara di depan, tanpa `+` atau spasi). Dibiarkan kosong = bot tidak connect. |
+| `BOT_NUMBER` | ➖ | Nomor WhatsApp bot, hanya angka (mis. `62812xxxxxxx`, kode negara di depan, tanpa `+` atau spasi). **Opsional di terminal interaktif** — bot bertanya nomornya saat pairing pertama dan menawarkan menyimpannya ke `.env`. Di panel hosting (console tidak interaktif) wajib: isi di env atau pakai startup command `npm start -- 628…`. |
 | `OWNER_NUMBER` | ➖ | Nomor pribadi Anda, hanya angka. Mendapat hak owner di seluruh perintah. |
 | `PAIRING_MODE` | ➖ | Isi `qr` untuk pairing lewat QR alih-alih kode pairing tetap. |
 | `NO_ANSI` / `NO_COLOR` | ➖ | Isi `1` untuk mencetak banner polos tanpa kode ANSI (berguna untuk panel atau berkas log). |
@@ -136,7 +136,10 @@ Catatan:
 
 Mode default memakai kode pairing **`ARCANISS`**:
 
-1. Isi `BOT_NUMBER` di `.env`, lalu `npm start`.
+1. Sediakan nomor bot — salah satu dari ini:
+   - **Terminal interaktif**: `npm start`; saat panel pairing tampil `MENUNGGU INPUT`, ketik nomornya (tervalidasi, maks 3 kali). Bot lalu menawarkan menyimpan ke `.env` untuk restart berikutnya.
+   - **Startup command / CLI** (tetap jalan di console panel yang tidak interaktif): `npm start -- 6281234567890`, atau `npm start -- --number=6281234567890`.
+   - **Environment**: `BOT_NUMBER=6281234567890` di `.env` atau environment variables panel.
 2. Panel pairing menampilkan kode tetap:
 
    <div align="center">
