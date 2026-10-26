@@ -115,10 +115,11 @@ external platform or downloader service
 ### Komponen penting
 
 - `main.js` — routing command dan lifecycle bot.
-- `index.js` — entry point runtime.
+- `index.js` — supervisor yang menjalankan worker bot; `.update` memicu restart otomatis (exit code 42 → fork ulang `bot.js`).
+- `bot.js` — worker runtime bot (isi `index.js` sebelum supervisor).
 - `commands/` — handler per command.
 - `lib/` — shared logic, converter, uploader, downloader, sticker, game, cleanup.
-- `scrapr-main/` — local package `@coflyn/scrapr`.
+- `scrapr-main/` — local package `@coflyn/scrapr` (vendored v1.4.0).
 - `data/` — data konfigurasi dan fitur.
 - `session/` — credential/session WhatsApp; private.
 - `node_modules/` — dependency hasil install; tidak dipush.

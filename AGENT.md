@@ -8,8 +8,8 @@ Panduan kerja universal untuk semua model AI yang mengubah, menganalisis, menguj
 - Runtime: Node.js.
 - Platform: WhatsApp multi-device.
 - Library utama: Baileys.
-- Package lokal downloader: `@coflyn/scrapr` dari `scrapr-main`.
-- Entry point: `index.js`.
+- Package lokal downloader: `@coflyn/scrapr` v1.4.0 (vendored) dari `scrapr-main`.
+- Entry point: `index.js` (supervisor) yang menjalankan worker `bot.js`; supervisor fork ulang worker saat exit code 42 untuk restart otomatis `.update`.
 - Router utama: `main.js`.
 - Handler command: `commands/`.
 - Shared logic: `lib/`.
@@ -96,8 +96,10 @@ npm start
 - `commands/play.js`: alias `.play`; jangan duplikasi logic audio.
 - `commands/video.js`: handler video.
 - `lib/scraprDownloader.js`: orchestration scraper, download buffer, platform detection.
+- `lib/soundcloudApi.js`: resolver SoundCloud via API resmi; HLS-only track dikonversi ffmpeg lewat `lib/ffmpegConvert.js` (`hlsToMp3`).
 - `lib/converter.js`: FFmpeg conversion untuk audio/video/sticker.
-- `scrapr-main/`: implementasi scraper lokal.
+- `scrapr-main/`: implementasi scraper lokal (vendored `@coflyn/scrapr` v1.4.0).
+- `commands/update.js`: `.update` + restart worker (exit code 42 yang ditangkap supervisor `index.js`).
 - `package.json` dan `package-lock.json`: dependency dan script.
 - `session/`, auth data, database lokal, dan temporary files: private/runtime data.
 

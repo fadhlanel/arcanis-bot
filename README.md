@@ -72,6 +72,7 @@ Most Baileys bots print a QR code you must screenshot within sixty seconds — p
 
 - **Node.js 18+** (LTS 20 or 22 recommended)
 - **npm**
+- **ffmpeg** on PATH (optional but recommended) — needed for `.mp4to3` and HLS-only SoundCloud tracks (`.sc`); without it those downloads stop with a clear error message
 - **A dedicated WhatsApp account** for the bot (the "bot number"). It must be a real registered account, separate from your personal number.
 - Internet connection; ~250 MB free space after `node_modules`.
 
@@ -204,7 +205,8 @@ All commands use the `.` prefix. Send **`.help`** or **`.menu`** in chat for the
 
 ```
 arcanis-bot-main/
-├── index.js             # Entry point — banners, pairing logic, connection handling
+├── index.js             # Supervisor — fork bot.js worker; relaunch on exit code 42 (.update)
+├── bot.js               # Bot worker — banners, pairing logic, connection handling
 ├── settings.js          # Base config (bot name, version, owner fallback, packname)
 ├── commands/            # One module per command (100+)
 │   ├── help.js          #   .help / .menu renderer
@@ -217,7 +219,7 @@ arcanis-bot-main/
 ├── data/                # JSON state (anti-delete, autoread, message counts, ...)
 ├── assets/              # Images, sticker assets, README previews
 │   └── readme/          #   hero + preview PNGs used by this README
-├── scrapr-main/         # Local downloader module
+├── scrapr-main/         # Vendored @coflyn/scrapr v1.4.0 downloader modules
 ├── session/             # Made at first pairing — credentials, never commit
 └── baileys_store.json   # Chat/message index
 ```
@@ -233,6 +235,8 @@ arcanis-bot-main/
 | QR missing / scan window expires | QR support is opt-in: `npm start -- --qr` or `PAIRING_MODE=qr`. |
 | `npm install` fails on panels/VPS | Try `npm run install:panel`. Node LTS (20/22) avoids most build hiccups. |
 | Downloader commands return empty | Many external sources throttle or change APIs; try another link or platform. |
+| SoundCloud download fails with "butuh ffmpeg" | The track is HLS-only; install ffmpeg (`apt install ffmpeg` / `choco install ffmpeg`) then start the bot again. |
+| `.update` stops but never relaunches | Start the bot with `npm start` (the `index.js` supervisor), not `node bot.js`; if you use PM2, wrap `index.js` too. |
 
 ## Security notes
 

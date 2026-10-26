@@ -72,6 +72,7 @@ Sebagian besar bot Baileys mencetak kode QR yang harus dipindai <em>sebelum keda
 
 - **Node.js 18+** (disarankan LTS 20 atau 22)
 - **npm**
+- **ffmpeg** di PATH (opsional tapi disarankan) — diperlukan untuk `.mp4to3` dan track SoundCloud yang hanya menyedia HLS (`.sc`); tanpa ffmpeg perintah itu berhenti dengan pesan error yang jelas
 - **Satu akun WhatsApp khusus** untuk bot (nomor "bot"). Harus akun asli terdaftar, terpisah dari nomor pribadi Anda.
 - Koneksi internet; sisa ruang ~250 MB setelah `node_modules`.
 
@@ -204,7 +205,8 @@ Semua perintah berprefix `.`. Kirim **`.help`** atau **`.menu`** di chat untuk d
 
 ```
 arcanis-bot-main/
-├── index.js             # Titik masuk — banner, logika pairing, penanganan koneksi
+├── index.js             # Supervisor — menjalankan worker bot.js; fork ulang saat exit code 42 (.update)
+├── bot.js               # Worker bot — banner, logika pairing, penanganan koneksi
 ├── settings.js          # Konfigurasi dasar (nama bot, versi, fallback owner, packname)
 ├── commands/            # Satu modul per perintah (100+)
 │   ├── help.js          #   renderer .help / .menu
@@ -217,7 +219,7 @@ arcanis-bot-main/
 ├── data/                # State JSON (anti-delete, autoread, hitung pesan, ...)
 ├── assets/              # Gambar, aset stiker, pratinjau README
 │   └── readme/          #   hero + PNG pratinjau untuk README
-├── scrapr-main/         # Modul downloader lokal
+├── scrapr-main/         # Modul downloader: vendored @coflyn/scrapr v1.4.0
 ├── session/             # Dibuat saat pairing pertama — kredensial, jangan di-commit
 └── baileys_store.json   # Indeks chat/pesan
 ```
@@ -233,6 +235,8 @@ arcanis-bot-main/
 | QR tidak muncul / jendela scan hangus | QR itu opt-in: `npm start -- --qr` atau `PAIRING_MODE=qr`. |
 | `npm install` gagal di panel/VPS | Coba `npm run install:panel`. Node LTS (20/22) menghindari sebagian besar masalah build. |
 | Perintah downloader balasan kosong | Banyak sumber eksternal throttle atau ganti API; coba tautan/platform lain. |
+| SoundCloud gagal dengan pesan "butuh ffmpeg" | Track hanya menyedia HLS; pasang ffmpeg (`apt install ffmpeg` / `choco install ffmpeg`) lalu jalankan ulang bot. |
+| `.update` berhenti tapi tidak hidup lagi | Jalankan bot dengan `npm start` (supervisor `index.js`), bukan `node bot.js`; jika memakai PM2, bungkus `index.js` juga. |
 
 ## Catatan keamanan
 
