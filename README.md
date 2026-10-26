@@ -1,198 +1,247 @@
+<div align="center">
+
+<img src="assets/readme/hero.png" alt="ARCANIS BOT — WhatsApp multi-device bot with fixed pairing code ARCANISS" width="100%">
+
 # ARCANIS BOT
 
-<div align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=Orbitron&size=50&pause=1000&color=00C2FF&center=true&vCenter=true&width=900&height=100&lines=ARCANIS+BOT;WhatsApp+Multi-Device+Bot;Baileys+Powered" alt="ARCANIS BOT" />
-</div>
+**WhatsApp multi-device bot** for group moderation, media downloads, stickers, AI utilities, and fun commands — built on [Baileys v7](https://github.com/WhiskeySockets/Baileys) with a beautiful ANSI terminal banner.
 
-<div align="center">
-
-WhatsApp multi-device bot for group moderation, media tools, social downloader, stickers, AI, and games.
-
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Baileys](https://img.shields.io/badge/Baileys-Multi--Device-25D366?style=flat-square&logo=whatsapp&logoColor=white)](https://github.com/WhiskeySockets/Baileys)
-[![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
+**English** · [Bahasa Indonesia](README.id.md)
 
 </div>
+
+## Contents
+
+- [Why this bot](#why-this-bot)
+- [Preview](#preview)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Running the bot](#running-the-bot)
+- [Pairing your account](#pairing-your-account)
+- [Command set](#command-set)
+- [Project structure](#project-structure)
+- [Troubleshooting](#troubleshooting)
+- [Security notes](#security-notes)
+- [Credits & license](#credits--license)
+
+## Why this bot
+
+- **Fixed pairing code `ARCANISS`** — no screenshots of QR codes to juggle. The bot prints an 8-character pairing code in a styled terminal banner; you type it in on the bot's phone.
+- **Terminal-first experience** — a hand-crafted block-glyph ARCANIS logo, boot panel, and pairing panel drawn with ANSI colors (disable anytime with `NO_ANSI=1`).
+- **Multi-device (MD)** — runs on one dedicated WhatsApp account while you keep using your personal one.
+- **Serious moderation toolkit** — anti-link, anti-spam, anti-delete, warnings, tag tools, and group settings, plus a big media & utility command surface.
+- **Split-proof menu** — long menus are chunked automatically so WhatsApp never truncates them.
+
+## Preview
+
+A peek at the terminal banner and pairing flow:
+
+<table>
+  <tr>
+    <th width="57%">Terminal — boot + pairing code</th>
+    <th width="43%">WhatsApp — <code>.menu</code></th>
+  </tr>
+  <tr>
+    <td><img src="assets/readme/preview-terminal.png" alt="ARCANIS BOT terminal banner with pairing code ARCANISS" width="100%"></td>
+    <td><img src="assets/readme/preview-menu.png" alt="WhatsApp chat with ARCANIS BOT menu after sending .menu" width="100%"></td>
+  </tr>
+</table>
 
 ## Features
 
-### Group Moderation
+| Category | Highlights |
+| --- | --- |
+| 🛡️ **Admin** | Tag all / hidden tag, kick, promote & demote, mute & unmute, warn & warnings, pin & unpin messages |
+| 🧰 **Moderation** | Anti-link, anti-badword, anti-spam, anti-tag, anti-delete backup, group info, group lock, welcome & goodbye messages |
+| 🔧 **Utilities** | AI chat (`.ai / .gpt / .gemini`), translation, URL-to-link converter, website screenshot, view-once viewer, JID lookup |
+| 🖼️ **Stickers & images** | Sticker maker, sticker-to-image, re-take metadata, crop, blur, background removal, image upscaling, emoji mixer, Telegram sticker grab |
+| 📥 **Downloads** | YouTube audio/video, TikTok, Instagram, Facebook, Twitter/X, Pinterest, Threads, Reddit, SoundCloud, Bilibili, cross-platform universal download |
+| 🎮 **Fun & effects** | Ship & compatibility memes, user memes, anime actions, image effects, flag filters |
+| 👑 **Owner control** | Public/private mode, sudo users, session cleanup, temp cleanup, profile picture setter, auto-typing/auto-read/auto-react toggles, PM blocker |
 
-- Member controls: `.kick`, `.ban`, `.unban`, `.promote`, `.demote`.
-- Group controls: `.mute`, `.unmute`, `.grouplock`, `.groupunlock`, `.setgname`, `.setgdesc`, `.setgpp`.
-- Mention tools: `.tagall`, `.tag`, `.hidetag`, `.tagnotadmin`.
-- Warning system: `.warn @user`, `.warnings @user`, `.unwarn <jumlah> @user`.
-- Warning flow: first and second spam warning mute for 10 minutes, third warning mutes for 1 hour, fourth warning removes member.
+<details>
+<summary><strong>Why a fixed pairing code?</strong></summary>
 
-### Group Protection
+Most Baileys bots print a QR code you must screenshot within sixty seconds — painful on a headless server. A pairing code is just **8 characters typed on the phone**, survives retry prompts, and can't expire mid-scan. ARCANIS BOT still supports QR if you prefer it: start with `--qr` or `PAIRING_MODE=qr`.
 
-- `.antilink on/off` blocks prohibited links.
-- `.antibadword on/off` filters configured bad words.
-- `.antispam` detects message floods, deletes muted-user messages, and records warnings.
-- `.antitag on/off` helps limit abusive mass mentions.
-- `.welcome on/off` and `.goodbye on/off` manage member event messages.
-- `.antidelete on/off` stores deleted messages when enabled.
-
-### Media Downloader
-
-- Supported social platforms include TikTok, Instagram, Facebook, X/Twitter, YouTube, Pinterest, Threads, Reddit, Pixiv, RedNote/Xiaohongshu, SoundCloud, Douyin, Bilibili, Bandcamp, Spotify, Apple Music, and Terabox.
-- Platform commands: `.tiktok`, `.instagram`, `.facebook`, `.twitter`, `.ytmp4`, `.pinterest`, `.threads`, `.reddit`, `.soundcloud`, and others.
-- `.univmp4 <link>` downloads video from a supported social URL.
-- `.univmp3 <link>` tries direct audio first. If unavailable, bot downloads video and converts it to MP3 locally.
-- `.play <judul>`, `.song <judul>`, and `.video <judul>` search YouTube media with fallback download sources.
-
-### Local MP4 to MP3
-
-- `.mp4to3 <link>` or `.mp4tomp3 <link>` downloads and converts a supported video URL.
-- Reply to a WhatsApp video with `.mp4to3` to convert it.
-- Send video with caption `.mp4to3` to convert it directly.
-- Uses local FFmpeg and `libmp3lame`; temporary files are cleaned after delivery.
-
-### Stickers, Images, and Effects
-
-- `.sticker` / `.s` creates sticker from replied media.
-- `.simage`, `.take`, `.crop`, and `.tgsticker` handle sticker conversion and metadata.
-- `.blur`, `.removebg`, `.remini`, and `.emojimix` provide image tools.
-- `.brat <teks> gerak` creates animated Brat sticker.
-- Text and image effects include `.attp`, `.metallic`, `.ice`, `.neon`, `.fire`, `.glitch`, `.matrix`, `.wasted`, and more.
-
-### AI and Utilities
-
-- `.ai`, `.gpt`, and `.gemini` provide AI prompts.
-- `.translate` / `.trt` translates text.
-- `.ss <url>` captures website screenshot.
-- `.url` uploads replied media and returns a URL.
-- `.vv` reads view-once media.
-- `.ping`, `.alive`, `.jid`, `.groupinfo`, `.staff`, and `.settings` provide diagnostics and information.
-
-### Games and Entertainment
-
-- Tic-tac-toe: `.tictactoe`, `.ttt`, and `.move`.
-- Word and quiz games: `.hangman`, `.guess`, `.trivia`, `.answer`.
-- Social commands: `.truth`, `.dare`, `.8ball`, `.ship`, `.compliment`, `.insult`.
-- Anime actions, GIFs, character cards, memes, and text effects.
-
-### Owner Automation
-
-- `.mode public/private` sets bot access mode.
-- `.sudo add/remove @user` manages sudo users.
-- `.autotyping`, `.autoread`, `.autoreact`, `.autostatus` manage automated behavior.
-- `.pmblocker`, `.anticall`, `.cleartmp`, `.clearsession`, and `.setpp` manage bot operations.
+</details>
 
 ## Requirements
 
-- Node.js `>=18`
-- npm
-- FFmpeg with `libmp3lame` encoder for MP4-to-MP3 conversion
-- A WhatsApp account for pairing
-
-Verify FFmpeg:
-
-```bash
-ffmpeg -version
-ffprobe -version
-ffmpeg -hide_banner -encoders | grep libmp3lame
-```
+- **Node.js 18+** (LTS 20 or 22 recommended)
+- **npm**
+- **A dedicated WhatsApp account** for the bot (the "bot number"). It must be a real registered account, separate from your personal number.
+- Internet connection; ~250 MB free space after `node_modules`.
 
 ## Installation
 
-```bash
-git clone https://github.com/fadhlanel/arcanis-bot.git
-cd arcanis-bot
+**Windows (PowerShell):**
+
+```powershell
+Copy-Item .env.example .env
+notepad .env        # isi BOT_NUMBER + OWNER_NUMBER Anda
 npm install
 ```
 
-Copy environment template if needed:
+**Linux / macOS:**
 
 ```bash
 cp .env.example .env
+nano .env           # set BOT_NUMBER + OWNER_NUMBER
+npm install
 ```
 
-Set required environment values in `.env`. Never commit `.env`, `session/`, or WhatsApp credentials.
+> On managed hosting panels (KataBump, Pterodactyl, etc.) use `npm run install:panel` — it installs with `--legacy-peer-deps` to work around stricter resolvers.
 
-Start bot:
+## Configuration
+
+Create `.env` next to `settings.js`. All values are optional except `BOT_NUMBER`.
+
+| Variable | Required | Description |
+| --- | :---: | --- |
+| `BOT_NUMBER` | ✅ | The bot's WhatsApp number, digits only (e.g. `62812xxxxxxx`, country code first, no `+` or spaces). Left empty, the bot will not connect. |
+| `OWNER_NUMBER` | ➖ | Your personal number, digits only. Gets owner privileges across commands. |
+| `PAIRING_MODE` | ➖ | Set to `qr` to pair by scanning a QR code instead of the default fixed pairing code. |
+| `NO_ANSI` / `NO_COLOR` | ➖ | Set to `1` to print plain banners without ANSI escape codes (useful for panels or log files). |
+| `KNIGHTBOT_API_KEY` | ➖ | Key for the bundled media/API helper (default `knight`). |
+| `NEWS_API_KEY` | ➖ | Enables news-related helper features. |
+| `TENOR_API_KEY` | ➖ | Enables Tenor GIF lookups. |
+| `GIPHY_API_KEY` | ➖ | Enables GIF sticker lookups. |
+| `TELEGRAM_BOT_TOKEN` | ➖ | Enables Telegram sticker sources. |
+| `GITHUB_REPO` / `GITHUB_BRANCH` | ➖ | Point at a repository used by update/asset helpers. |
+
+Other knobs (bot name, version, sticker pack, message limits) live in `settings.js`.
+
+## Running the bot
 
 ```bash
 npm start
 ```
 
-Other scripts:
+or optimized for small-memory VPS:
 
 ```bash
 npm run start:optimized
-npm run cleanup
-npm run reset-session
 ```
 
-Pair WhatsApp from terminal using QR or pairing flow provided by bot startup.
+Notes:
 
-## Main Commands
+- **ANSI banners**: disable with `NO_ANSI=1 npm start` (bash) or `$env:NO_ANSI="1"; npm start` (PowerShell).
+- If you already have a saved session, the bot boots and connects straight away — no pairing prompt.
+- A fresh start will show the boot banner, then the pairing panel until the account is linked.
 
-| Command | Description |
-|---|---|
-| `.help` / `.menu` | Show command menu |
-| `.ping` / `.alive` | Check bot status |
-| `.tagall <pesan>` | Tag all group members |
-| `.warn @user` | Add warning to user |
-| `.warnings @user` | Check user warnings |
-| `.unwarn 2 @user` | Remove two warnings |
-| `.antilink on/off` | Toggle link moderation |
-| `.antibadword on/off` | Toggle badword moderation |
-| `.univmp3 <link>` | Download direct audio, or convert video to MP3 |
-| `.univmp4 <link>` | Download video from supported platform |
-| `.mp4to3 <link>` | Download and convert video URL to MP3 |
-| `.mp4to3` | Reply to video or send video with this caption to convert |
-| `.play <judul>` / `.song <judul>` | Search and download song |
-| `.video <judul>` | Search and download video |
-| `.sticker` / `.s` | Create sticker from replied media |
-| `.brat <teks> gerak` | Create animated Brat sticker |
-| `.ai <pertanyaan>` | Ask AI |
+## Pairing your account
 
-Use `.help` for complete command list.
+The default mode uses pairing code **`ARCANISS`**:
 
-## MP4 to MP3
+1. Set `BOT_NUMBER` in `.env`, then `npm start`.
+2. The pairing panel prints the fixed code:
 
-FFmpeg runs locally. Media is stored temporarily in `temp/`, converted, sent back, then cleaned up.
+   <div align="center">
 
-```text
-Reply video: .mp4to3
-Video caption: .mp4to3
-URL: .mp4to3 https://example.com/video.mp4
+   `「 A R C A N I S S 」`
+
+   </div>
+
+3. On the **bot phone** (the WhatsApp account whose number is `BOT_NUMBER`):
+   **Settings → Linked Devices → Link a Device → Link with phone number instead**, then enter `ARCANISS`.
+4. Wait for the ***Connected!* banner — the session is saved** to `session/`, so the next run reconnects automatically, no pairing again.
+
+Switch to QR with `npm start -- --qr` (or `PAIRING_MODE=qr` in `.env`) if you prefer to scan.
+
+<details>
+<summary><strong>Resetting a session</strong></summary>
+
+Stop the bot, delete the `session/` folder, delete `baileys_store.json` if you want a fully clean state, then start again and re-pair. From WhatsApp you can also send **`.clearsession`** (owner only).
+
+> If you run the bot on a managed panel that keeps its own copy of `session/`, also clear the folder from the panel's file manager — deleting it locally is not enough in that case.
+
+</details>
+
+## Command set
+
+All commands use the `.` prefix. Send **`.help`** or **`.menu`** in chat for the complete list.
+
+**Admin & moderation** *(group admins)*
+
+| Command | Effect |
+| --- | --- |
+| `.tagall` / `.hidetag <pesan>` | Mention every member (visibly or silently) |
+| `.kick @user` · `.promote` / `.demote @user` | Manage members & their admin status |
+| `.mute <menit>` / `.unmute` · `.grouplock` / `.groupunlock` | Freeze / open a group for everyone but admins |
+| `.warn @user` / `.warnings @user` | Warning system with persistence |
+| `.antilink on/off` · `.antispam` · `.antibadword on/off` · `.antidelete on/off` | Auto-moderation toggles |
+| `.welcome on/off` · `.goodbye on/off` · `.setgname` · `.setgdesc` · `.setgpp` | Group identity & member announcements |
+| `.pin` / `.unpin` · `.resetlink` · `.groupinfo` | Message pins, invite link reset, group info |
+
+**Utilities & media**
+
+| Command | Effect |
+| --- | --- |
+| `.ai / .gpt / .gemini <question>` | Ask the AI assistant |
+| `.translate <text>` / `.trt <text> <lang>` | Translate text |
+| `.play / .song <title>` · `.video <title>` · `.ytmp4 <link>` | Search & download music/video |
+| `.tiktok` `.instagram` `.facebook` `.twitter/X` `.pinterest` `.threads` `.reddit` `.soundcloud` | Platform downloaders by link |
+| `.univmp3` / `.univmp4 <link>` | Universal audio/video downloader |
+| `.sticker` / `.s` · `.simage` · `.take <pack>` · `.crop` · `.blur` | Sticker & image tooling |
+| `.removebg` · `.remini` · `.emojimix` · `.url` · `.ss <link>` · `.vv` | Image utilities & web helpers |
+
+**Fun, owner & misc**
+
+| Command | Effect |
+| --- | --- |
+| `.ship @user` · `.compliment` / `.insult @user` · `.wasted @user` · anime actions & effects | Entertainment commands |
+| `.mode public/private` · `.sudo add/remove @user` · `.clearsession` · `.cleartmp` · `.setpp` | Owner administration |
+| `.autoread` / `.autotyping` / `.autoreact` · `.pmblocker` · `.anticall` · `.mention` | Owner toggles for bot behavior |
+| `.ping` / `.alive` · `.settings` · `.jid` · `.owner` · `.delete` · `.clear` | Misc info & housekeeping |
+
+## Project structure
+
+```
+arcanis-bot-main/
+├── index.js             # Entry point — banners, pairing logic, connection handling
+├── settings.js          # Base config (bot name, version, owner fallback, packname)
+├── commands/            # One module per command (100+)
+│   ├── help.js          #   .help / .menu renderer
+│   └── ...
+├── lib/                 # Core helpers
+│   ├── banner.js        #   ANSI terminal banner (block-glyph ARCANIS, boot/pairing panels)
+│   ├── antilink.js      #   link enforcement
+│   ├── sticker.js       #   media → sticker pipeline
+│   └── ...
+├── data/                # JSON state (anti-delete, autoread, message counts, ...)
+├── assets/              # Images, sticker assets, README previews
+│   └── readme/          #   hero + preview PNGs used by this README
+├── scrapr-main/         # Local downloader module
+├── session/             # Made at first pairing — credentials, never commit
+└── baileys_store.json   # Chat/message index
 ```
 
-For social URLs, use `.univmp3 <link>`. Bot tries direct audio first. If no audio exists, bot downloads video and converts it to MP3 with FFmpeg.
+## Troubleshooting
 
-## Project Structure
+| Symptom | Likely cause & fix |
+| --- | --- |
+| Banner shows but nothing connects | `BOT_NUMBER` is empty — fill it in `.env`, keep digits only. |
+| "Connection closed / 401" or endless reconnect loop | Saved session is stale: stop the bot, delete `session/`, start and re-pair. |
+| Pairing code printed but rejected | Make sure you enter the code on the **bot's** phone, **within the time window shown**, and the number isn't already logged in elsewhere (WhatsApp web sessions count). |
+| Banner looks like garbage characters | Your log sink strips ANSI: set `NO_ANSI=1` or `NO_COLOR=1`. |
+| QR missing / scan window expires | QR support is opt-in: `npm start -- --qr` or `PAIRING_MODE=qr`. |
+| `npm install` fails on panels/VPS | Try `npm run install:panel`. Node LTS (20/22) avoids most build hiccups. |
+| Downloader commands return empty | Many external sources throttle or change APIs; try another link or platform. |
 
-```text
-commands/       Command handlers
-lib/            Shared helpers, media, scraper, FFmpeg utilities
-scrapr-main/    Local @coflyn/scrapr package
-data/           Runtime moderation/configuration data
-session/        WhatsApp session data; do not commit
-temp/           Temporary media files; do not commit
-```
+## Security notes
 
-## Security Notes
+- **Never share or commit `session/`** — that folder contains the bot's WhatsApp credentials. Anyone with it can control the bot.
+- The pairing code is fixed (`ARCANISS`) by design for convenience. That's fine for a personal bot, as long as only you can read the terminal — codes are useless without access to the phone anyway.
+- Downloaders depend on third-party services that can change or disappear; respect each platform's terms and only download content you have the right to.
+- AI and sticker features call external APIs — mind their quotas and privacy implications when used in groups.
+- Use for legitimate moderation and fun. This project is **not affiliated with WhatsApp or Meta**.
 
-- Keep `.env` and `session/` private.
-- Do not publish WhatsApp credentials, API keys, phone numbers, or runtime session files.
-- Do not use bot for spam, bulk messaging, harassment, or illegal activity.
-- Apply upload size limits and keep FFmpeg installed only from trusted sources.
-- WhatsApp may restrict or ban accounts for automation. Use at your own risk.
+## Credits & license
 
-## Legal
+- Built on the excellent [Baileys](https://github.com/WhiskeySockets/Baileys) WebSocket library and the wider open-source WhatsApp bot ecosystem.
+- Terminal banner, pairing code flow, and this documentation: tailored for ARCANIS BOT.
 
-ARCANIS BOT is an independent project. It is not affiliated with, endorsed by, or sponsored by WhatsApp or Meta.
-
-Use this project only in compliance with local law, WhatsApp terms, and third-party platform terms.
-
-## Credits
-
-- [Baileys](https://github.com/WhiskeySockets/Baileys)
-- [`@coflyn/scrapr`](https://github.com/coflyn/scrapr)
-- Open-source libraries listed in `package.json`
-
-## License
-
-MIT. Preserve license notices from included dependencies and source material.
+Released under the **MIT License** — see [LICENSE](LICENSE).

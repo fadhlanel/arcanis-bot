@@ -88,21 +88,7 @@ async function helpCommand(sock, chatId, message) {
 • .univmp4 <tautan> — Unduh video lintas platform
 • .brat <teks> — Buat meme Brat
 
-✨ EFEK TEKS
-• .attp <teks> — Teks animasi
-• .metallic / .ice / .snow / .neon / .fire <teks> — Efek teks
-• .thunder / .glitch / .matrix / .hacker <teks> — Efek teks
-• .devil / .purple / .light / .impressive / .leaves <teks> — Efek teks
-• .sand / .blackpink / .1917 / .arena <teks> — Efek teks
-
 🎮 FUN & GAME
-• .tictactoe @user — Main tic-tac-toe
-• .hangman — Tebak kata
-• .guess <huruf> — Tebak huruf
-• .trivia / .answer <jawaban> — Kuis trivia
-• .truth / .dare — Tantangan
-• .8ball <pertanyaan> — Tanya bola ajaib
-• .topmembers — Anggota paling aktif
 • .ship @user — Cek kecocokan
 • .compliment / .insult @user — Pujian atau ejekan
 • .simp / .stupid / .character / .wasted @user — Meme pengguna

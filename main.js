@@ -53,8 +53,6 @@ const warnCommand = require('./commands/warn');
 const warningsCommand = require('./commands/warnings');
 const unwarnCommand = require('./commands/unwarn');
 const ttsCommand = require('./commands/tts');
-const { tictactoeCommand, handleTicTacToeMove } = require('./commands/tictactoe');
-const { incrementMessageCount, topMembers } = require('./commands/topmembers');
 const ownerCommand = require('./commands/owner');
 const deleteCommand = require('./commands/delete');
 const { handleAntilinkCommand, handleLinkDetection } = require('./commands/antilink');
@@ -72,15 +70,9 @@ const weatherCommand = require('./commands/weather');
 const newsCommand = require('./commands/news');
 const kickCommand = require('./commands/kick');
 const simageCommand = require('./commands/simage');
-const attpCommand = require('./commands/attp');
-const { startHangman, guessLetter } = require('./commands/hangman');
-const { startTrivia, answerTrivia } = require('./commands/trivia');
 const { complimentCommand } = require('./commands/compliment');
 const { insultCommand } = require('./commands/insult');
-const { eightBallCommand } = require('./commands/eightball');
 const { lyricsCommand } = require('./commands/lyrics');
-const { dareCommand } = require('./commands/dare');
-const { truthCommand } = require('./commands/truth');
 const { clearCommand } = require('./commands/clear');
 const pingCommand = require('./commands/ping');
 const aliveCommand = require('./commands/alive');
@@ -109,7 +101,6 @@ const { autoStatusCommand, handleStatusUpdate } = require('./commands/autostatus
 const { simpCommand } = require('./commands/simp');
 const { stupidCommand } = require('./commands/stupid');
 const stickerTelegramCommand = require('./commands/stickertelegram');
-const textmakerCommand = require('./commands/textmaker');
 const { handleAntideleteCommand, handleMessageRevocation, storeMessage } = require('./commands/antidelete');
 const clearTmpCommand = require('./commands/cleartmp');
 const setProfilePicture = require('./commands/setpp');
@@ -263,12 +254,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
             return;
         }
 
-        // First check if it's a game move
-        if (/^[1-9]$/.test(userMessage) || userMessage.toLowerCase() === 'surrender') {
-            await handleTicTacToeMove(sock, chatId, senderId, userMessage);
-            return;
-        }
-
         /*  // Basic message response in private chat
           if (!isGroup && (userMessage === 'hi' || userMessage === 'hello' || userMessage === 'bot' || userMessage === 'hlo' || userMessage === 'hey' || userMessage === 'bro')) {
               await sock.sendMessage(chatId, {
@@ -276,8 +261,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
               });
               return;
           } */
-
-        if (!message.key.fromMe) incrementMessageCount(chatId, senderId);
 
         // Anti-spam handles deleting messages during mute; do not return here.
         if (isGroup) {
@@ -467,9 +450,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
             case userMessage.startsWith('.delete') || userMessage.startsWith('.del'):
                 await deleteCommand(sock, chatId, message, senderId);
                 break;
-            case userMessage.startsWith('.attp'):
-                await attpCommand(sock, chatId, message);
-                break;
 
             case userMessage === '.settings':
                 await settingsCommand(sock, chatId, message);
@@ -611,52 +591,11 @@ async function handleMessages(sock, messageUpdate, printLog) {
             case userMessage === '.news':
                 await newsCommand(sock, chatId);
                 break;
-            case userMessage.startsWith('.ttt') || userMessage.startsWith('.tictactoe'):
-                const tttText = userMessage.split(' ').slice(1).join(' ');
-                await tictactoeCommand(sock, chatId, senderId, tttText);
-                break;
-            case userMessage.startsWith('.move'):
-                const position = parseInt(userMessage.split(' ')[1]);
-                if (isNaN(position)) {
-                    await sock.sendMessage(chatId, { text: 'Please provide a valid position number for Tic-Tac-Toe move.' }, { quoted: message });
-                } else {
-                    tictactoeMove(sock, chatId, senderId, position);
-                }
-                break;
-            case userMessage === '.topmembers':
-                topMembers(sock, chatId, isGroup);
-                break;
-            case userMessage.startsWith('.hangman'):
-                startHangman(sock, chatId);
-                break;
-            case userMessage.startsWith('.guess'):
-                const guessedLetter = userMessage.split(' ')[1];
-                if (guessedLetter) {
-                    guessLetter(sock, chatId, guessedLetter);
-                } else {
-                    sock.sendMessage(chatId, { text: 'Please guess a letter using .guess <letter>' }, { quoted: message });
-                }
-                break;
-            case userMessage.startsWith('.trivia'):
-                startTrivia(sock, chatId);
-                break;
-            case userMessage.startsWith('.answer'):
-                const answer = userMessage.split(' ').slice(1).join(' ');
-                if (answer) {
-                    answerTrivia(sock, chatId, answer);
-                } else {
-                    sock.sendMessage(chatId, { text: 'Please provide an answer using .answer <answer>' }, { quoted: message });
-                }
-                break;
             case userMessage.startsWith('.compliment'):
                 await complimentCommand(sock, chatId, message);
                 break;
             case userMessage.startsWith('.insult'):
                 await insultCommand(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.8ball'):
-                const question = userMessage.split(' ').slice(1).join(' ');
-                await eightBallCommand(sock, chatId, question);
                 break;
             case userMessage.startsWith('.lyrics'):
                 const songTitle = userMessage.split(' ').slice(1).join(' ');
@@ -672,12 +611,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 const stupidMentionedJid = message.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
                 const stupidArgs = userMessage.split(' ').slice(1);
                 await stupidCommand(sock, chatId, stupidQuotedMsg, stupidMentionedJid, senderId, stupidArgs);
-                break;
-            case userMessage === '.dare':
-                await dareCommand(sock, chatId, message);
-                break;
-            case userMessage === '.truth':
-                await truthCommand(sock, chatId, message);
                 break;
             case userMessage === '.clear':
                 if (isGroup) await clearCommand(sock, chatId);
@@ -855,67 +788,9 @@ async function handleMessages(sock, messageUpdate, printLog) {
             case userMessage.startsWith('.simp'):
                 await simpCommand(sock, chatId, message);
                 break;
-            case userMessage.startsWith('.metallic'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'metallic');
-                break;
-            case userMessage.startsWith('.ice'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'ice');
-                break;
-            case userMessage.startsWith('.snow'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'snow');
-                break;
-            case userMessage.startsWith('.impressive'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'impressive');
-                break;
-            case userMessage.startsWith('.matrix'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'matrix');
-                break;
-            case userMessage.startsWith('.light'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'light');
-                break;
-            case userMessage.startsWith('.neon'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'neon');
-                break;
-            case userMessage.startsWith('.devil'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'devil');
-                break;
-            case userMessage.startsWith('.purple'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'purple');
-                break;
-            case userMessage.startsWith('.thunder'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'thunder');
-                break;
-            case userMessage.startsWith('.leaves'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'leaves');
-                break;
-            case userMessage.startsWith('.1917'):
-                await textmakerCommand(sock, chatId, message, userMessage, '1917');
-                break;
-            case userMessage.startsWith('.arena'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'arena');
-                break;
-            case userMessage.startsWith('.hacker'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'hacker');
-                break;
-            case userMessage.startsWith('.sand'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'sand');
-                break;
-            case userMessage.startsWith('.blackpink'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'blackpink');
-                break;
-            case userMessage.startsWith('.glitch'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'glitch');
-                break;
-            case userMessage.startsWith('.fire'):
-                await textmakerCommand(sock, chatId, message, userMessage, 'fire');
-                break;
             case userMessage.startsWith('.antidelete'):
                 const antideleteMatch = userMessage.slice(11).trim();
                 await handleAntideleteCommand(sock, chatId, message, antideleteMatch);
-                break;
-            case userMessage === '.surrender':
-                // Handle surrender command for tictactoe game
-                await handleTicTacToeMove(sock, chatId, senderId, 'surrender');
                 break;
             case userMessage === '.cleartmp':
                 await clearTmpCommand(sock, chatId, message);

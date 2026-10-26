@@ -12,6 +12,11 @@ session/
 auth_info/
 .env
 .env.*
+!.env.example
+
+# Runtime data state (numbers/warnings live in here)
+data/*.json
+!data/.gitkeep
 
 # Archives and binaries
 *.rar

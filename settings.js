@@ -1,12 +1,15 @@
 require('dotenv').config();
 
+const digitsOnly = (value) => String(value || '').replace(/[^0-9]/g, '');
+
 const settings = {
   packname: 'ARCANIS BOT',
   author: '‎',
   botName: "ARCANIS BOT",
   aiMaxCharacters: 2000,
   botOwner: 'Entah', // Your name
-  ownerNumber: '6285334900361', //Set your number here without + symbol, just add country code & number without any space
+  ownerNumber: digitsOnly(process.env.OWNER_NUMBER || ''), // Nomor WhatsApp owner (jangan dipakai sebagai nomor bot)
+  botNumber: digitsOnly(process.env.BOT_NUMBER || ''), // Nomor WhatsApp akun BOT untuk pairing (kosong = bot tidak connect sampai diisi)
   giphyApiKey: process.env.GIPHY_API_KEY || '',
   commandMode: "public",
   maxStoreMessages: 20, 

@@ -40,6 +40,8 @@ const NodeCache = require("node-cache")
 // Using a lightweight persisted store instead of makeInMemoryStore (compat across versions)
 const pino = require("pino")
 const readline = require("readline")
+const qrcode = require("qrcode-terminal")
+const banner = require("./lib/banner")
 const { parsePhoneNumber } = require("libphonenumber-js")
 const { PHONENUMBER_MCC } = require('@whiskeysockets/baileys/lib/Utils/generics')
 const { rmSync, existsSync } = require('fs')
@@ -70,13 +72,25 @@ setInterval(() => {
     }
 }, 30_000) // check every 30 seconds
 
-let phoneNumber = ''
 let owner = JSON.parse(fs.readFileSync('./data/owner.json'))
 
 global.botname = settings.botName || "BotGajeJir"
 global.themeemoji = "•"
-const pairingCode = process.argv.includes("--pairing-code") || process.stdin.isTTY
-const useMobile = process.argv.includes("--mobile")
+
+// Banner startup ASCII/ANSI
+banner.printStartupBanner({ botName: settings.botName, version: settings.version })
+
+// Auth mode: pairing code adalah default. QR hanya jika diminta secara eksplisit
+// (--qr atau PAIRING_MODE=qr). Baileys v7 tidak lagi mencetak QR otomatis,
+// sehingga mode QR lama selalu menggantung tanpa bisa di-scan.
+const useQrMode = process.argv.includes("--qr") || String(process.env.PAIRING_MODE || '').trim().toLowerCase() === 'qr'
+
+// Pairing code DIPAKSA selalu ARCANISS (Baileys mensyaratkan tepat 8 karakter).
+// Tidak ada fallback ke kode random.
+const PAIRING_CODE = 'ARCANISS'
+
+// Batas percobaan request pairing code (satu percobaan per rotasi QR)
+const MAX_PAIRING_ATTEMPTS = 3
 
 // Only create readline interface if we're in an interactive environment
 const rl = process.stdin.isTTY ? readline.createInterface({ input: process.stdin, output: process.stdout }) : null
@@ -84,9 +98,25 @@ const question = (text) => {
     if (rl) {
         return new Promise((resolve) => rl.question(text, resolve))
     } else {
-        // In non-interactive environment, use ownerNumber from settings
-        return Promise.resolve(settings.ownerNumber || phoneNumber)
+        // Environment non-interaktif (hosting panel): tidak ada nomor yang bisa diketik
+        return Promise.resolve('')
     }
+}
+
+// Resolve nomor BOT untuk pairing. TIDAK PERNAH memakai ownerNumber —
+// akun bot dan akun owner adalah nomor yang berbeda.
+async function resolveBotNumber() {
+    let raw = process.env.BOT_NUMBER || settings.botNumber || ''
+    if (!raw && rl) {
+        raw = await question(chalk.bgBlack(chalk.greenBright(`Masukkan nomor WhatsApp BOT \nFormat: 6281234567890 (tanpa + atau spasi) : `)))
+    }
+    const number = String(raw || '').replace(/[^0-9]/g, '')
+    if (!number) return ''
+    if (!PhoneNumber('+' + number).isValid()) {
+        console.log(chalk.red(`Nomor bot tidak valid: ${number}. Format internasional tanpa + atau spasi, contoh: 6281234567890.`))
+        return ''
+    }
+    return number
 }
 
 
@@ -96,10 +126,33 @@ async function startXeonBotInc() {
         const { state, saveCreds } = await useMultiFileAuthState(`./session`)
         const msgRetryCounterCache = new NodeCache()
 
+        // Resolve nomor pairing SEBELUM socket dibuat, agar bot tidak pernah
+        // membuka koneksi WhatsApp tanpa nomor akun yang dikonfigurasi.
+        let pairingNumber = ''
+        if (!useQrMode && !state.creds.registered) {
+            const rawNumber = String(process.env.BOT_NUMBER || settings.botNumber || '').replace(/[^0-9]/g, '')
+            if (!rawNumber) {
+                // Banner tampil di tahap "masukkan nomor WhatsApp"
+                banner.printPairingSetup({ botNumber: '', ownerNumber: settings.ownerNumber })
+            }
+            pairingNumber = await resolveBotNumber()
+            if (!pairingNumber) {
+                console.log(chalk.red('❌ Nomor WhatsApp BOT belum diisi. Bot tidak membuka koneksi WhatsApp.'))
+                console.log(chalk.yellow('1. Isi env BOT_NUMBER dengan nomor akun WA BOT, contoh: 6281234567890 (tanpa + atau spasi).'))
+                console.log(chalk.yellow('2. BOT_NUMBER ≠ OWNER_NUMBER. Jangan isi nomor owner di sini.'))
+                console.log(chalk.yellow('3. Restart server setelah mengisi.'))
+                return null
+            }
+            console.log(chalk.cyan('🔑 Pairing code akan dikirim untuk nomor bot:') + ' ' + chalk.green(pairingNumber))
+        } else if (useQrMode) {
+            console.log(chalk.yellow('📱 Mode QR aktif. QR akan ditampilkan setelah koneksi siap.'))
+        } else {
+            console.log(chalk.cyan('✅ Session WhatsApp terdaftar, connect langsung tanpa pairing.'))
+        }
+
         const XeonBotInc = makeWASocket({
             version,
             logger: pino({ level: 'silent' }),
-            printQRInTerminal: !pairingCode,
             browser: ["Ubuntu", "Chrome", "20.0.04"],
             auth: {
                 creds: state.creds,
@@ -202,59 +255,53 @@ async function startXeonBotInc() {
 
     XeonBotInc.serializeM = (m) => smsg(XeonBotInc, m, store)
 
-    // Handle pairing code
-    if (pairingCode && !XeonBotInc.authState.creds.registered) {
-        if (useMobile) throw new Error('Cannot use pairing code with mobile api')
-
-        let phoneNumber
-        if (!!global.phoneNumber) {
-            phoneNumber = global.phoneNumber
-        } else {
-            phoneNumber = await question(chalk.bgBlack(chalk.greenBright(`Please type your WhatsApp number 😍\nFormat: 6281376552730 (without + or spaces) : `)))
-        }
-
-        // Clean the phone number - remove any non-digit characters
-        phoneNumber = String(phoneNumber || '').replace(/[^0-9]/g, '')
-        if (!phoneNumber) {
-            console.log(chalk.red('Nomor WhatsApp wajib diisi.'))
-            process.exit(1)
-        }
-
-        // Validate the phone number using awesome-phonenumber
-        const pn = require('awesome-phonenumber');
-        if (!pn('+' + phoneNumber).isValid()) {
-            console.log(chalk.red('Nomor tidak valid. Masukkan format internasional tanpa + atau spasi, contoh: 628123456789.'));
-            process.exit(1);
-        }
-
-        setTimeout(async () => {
-            try {
-                let code = await XeonBotInc.requestPairingCode(phoneNumber)
-                code = code?.match(/.{1,4}/g)?.join("-") || code
-                console.log(chalk.black(chalk.bgGreen(`Your Pairing Code : `)), chalk.black(chalk.white(code)))
-                console.log(chalk.yellow(`\nPlease enter this code in your WhatsApp app:\n1. Open WhatsApp\n2. Go to Settings > Linked Devices\n3. Tap "Link a Device"\n4. Enter the code shown above`))
-            } catch (error) {
-                console.error('Error requesting pairing code:', error)
-                console.log(chalk.red('Failed to get pairing code. Please check your phone number and try again.'))
-            }
-        }, 3000)
-    }
-
     // Connection handling
+    // State pairing per socket: kode hanya diminta sekali per sesi,
+    // tidak berulang saat QR merotasi atau saat reconnect.
+    let pairingAttempts = 0
+    let pairingFinished = false
+    let pairingBlocked = false
+
     XeonBotInc.ev.on('connection.update', async (s) => {
         const { connection, lastDisconnect, qr } = s
-        
+
         if (qr) {
-            console.log(chalk.yellow('📱 QR Code generated. Please scan with WhatsApp.'))
+            if (useQrMode) {
+                banner.printQrBanner()
+                qrcode.generate(qr, { small: true })
+            } else if (!XeonBotInc.authState.creds.registered) {
+                if (!pairingNumber && !pairingBlocked) {
+                    pairingBlocked = true
+                    console.log(chalk.red('❌ QR diterima tetapi nomor bot belum diketahui (BOT_NUMBER).'))
+                } else if (pairingNumber && !pairingFinished && !pairingBlocked) {
+                    if (pairingAttempts >= MAX_PAIRING_ATTEMPTS) {
+                        pairingBlocked = true
+                        console.log(chalk.red(`❌ Gagal meminta pairing code setelah ${MAX_PAIRING_ATTEMPTS} percobaan. Restart server dan cek BOT_NUMBER.`))
+                    } else {
+                        pairingAttempts += 1
+                        try {
+                            // Kode pairing dipaksa ARCANISS
+                            const code = await XeonBotInc.requestPairingCode(pairingNumber, PAIRING_CODE)
+                            pairingFinished = true
+                            banner.printPairingCode(code || PAIRING_CODE, pairingNumber)
+                        } catch (error) {
+                            console.error('Error requesting pairing code:', error?.message || error)
+                            console.log(chalk.red('Gagal meminta pairing code ARCANISS, mencoba lagi saat QR berikutnya muncul.'))
+                        }
+                    }
+                }
+            }
         }
-        
+
         if (connection === 'connecting') {
             console.log(chalk.yellow('🔄 Connecting to WhatsApp...'))
         }
         
         if (connection == "open") {
-            console.log(chalk.magenta(` `))
-            console.log(chalk.yellow(`🌿Connected to => ` + JSON.stringify(XeonBotInc.user, null, 2)))
+            banner.printConnectedBanner(XeonBotInc.user, {
+                ownerNumber: settings.ownerNumber,
+                version: settings.version,
+            })
 
             try {
                 const botNumber = XeonBotInc.user.id.split(':')[0] + '@s.whatsapp.net';
@@ -266,9 +313,6 @@ async function startXeonBotInc() {
             }
 
             await delay(1999)
-            console.log(chalk.yellow(`\n\n                  ${chalk.bold.blue(`[ ${settings.botName || 'BotGajeJir'} ]`)}\n\n`))
-            console.log(chalk.cyan(`< ================================================== >`))
-            console.log(chalk.magenta(`\n${global.themeemoji || '•'} Bot Version: ${settings.version}`))
         }
         
         if (connection === 'close') {
