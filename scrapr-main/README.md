@@ -8,7 +8,7 @@ _Resolve direct media links, unshorten intermediate links, and extract downloada
 [![npm version](https://img.shields.io/npm/v/@coflyn/scrapr.svg?style=flat-square)](https://www.npmjs.com/package/@coflyn/scrapr)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![node version](https://img.shields.io/badge/node-%3E%3D%2016.x-61afef.svg?style=flat-square)](https://nodejs.org)
-[![platforms](https://img.shields.io/badge/platforms-28-brightgreen.svg?style=flat-square)](#-api-reference)
+[![platforms](https://img.shields.io/badge/platforms-40%2B-brightgreen.svg?style=flat-square)](#-api-reference)
 [![GitHub stars](https://img.shields.io/github/stars/coflyn/scrapr?style=flat-square)](https://github.com/coflyn/scrapr/stargazers)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 
@@ -19,7 +19,7 @@ _Resolve direct media links, unshorten intermediate links, and extract downloada
 <br/>
 <br/>
 
-`TikTok` • `Instagram` • `YouTube` • `Spotify` • `Twitter / X` • `Facebook` • `SoundCloud` • `Pinterest` • `Apple Music` • `Bilibili` • `Douyin` • `Bandcamp` • `Threads` • `Pixiv` • `RedNote` • `Reddit` • `TeraBox` • `MediaFire` • `Sfile` • `Safelinku` • `Sub2Unlock` • `Rekonise` • `Unshorten` • `Pixeldrain` • `Catbox` • `Google Drive` • `Krakenfiles` • `Doodstream`
+`TikTok` • `Instagram` • `YouTube` • `Spotify` • `Twitter / X` • `Facebook` • `SoundCloud` • `Pinterest` • `Apple Music` • `Bilibili` • `Douyin` • `Bandcamp` • `Threads` • `Pixiv` • `RedNote` • `Reddit` • `TeraBox` • `MediaFire` • `Sfile` • `Safelinku` • `Sub2Unlock` • `Rekonise` • `Unshorten` • `Pixeldrain` • `Catbox` • `Google Drive` • `Krakenfiles` • `Doodstream` • `Otakudesu` • `Gogoanime` • `Nimegami` • `AnimeTosho` • `Komikindo` • `Komiku` • `Asura Scans` • `Kiryuu` • `Komikcast` • `MangaDex`
 
 <br/>
 
@@ -57,6 +57,7 @@ npm install git+https://github.com/coflyn/scrapr.git
 const { tiktok, twitter } = require("@coflyn/scrapr");
 
 (async () => {
+  // TikTok supports tiktok.com, vt.tiktok.com, vm.tiktok.com, and tt.site
   const tiktokRes = await tiktok.snaptik(
     "https://www.tiktok.com/@_coflyn/video/7662892911448558865",
   );
@@ -81,7 +82,9 @@ const { bandcamp } = require("@coflyn/scrapr");
 
 (async () => {
   // Direct track/album scraping (HTTP first)
-  const direct = await bandcamp.direct("https://tycho.bandcamp.com/track/awake");
+  const direct = await bandcamp.direct(
+    "https://tycho.bandcamp.com/track/awake",
+  );
   console.log("Direct stream:", direct.result.downloads[0].url);
 
   // Downloader method with direct fallback
@@ -100,7 +103,9 @@ const { resolver } = require("@coflyn/scrapr");
 
 (async () => {
   // Direct file host resolvers
-  const mf = await resolver.mediafire("https://www.mediafire.com/file/w4b1fjoijyug9qz/nix.py");
+  const mf = await resolver.mediafire(
+    "https://www.mediafire.com/file/w4b1fjoijyug9qz/nix.py",
+  );
   console.log("MediaFire direct URL:", mf.result.url);
 
   const pd = await resolver.pixeldrain("https://pixeldrain.com/d/8xz8hcYJ");
@@ -109,14 +114,18 @@ const { resolver } = require("@coflyn/scrapr");
   const cb = await resolver.catbox("https://files.catbox.moe/8ih3y7.png");
   console.log("Catbox direct URL:", cb.result.url);
 
-  const gd = await resolver.gdrive("https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view");
+  const gd = await resolver.gdrive(
+    "https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view",
+  );
   console.log("Google Drive direct CDN:", gd.result.url);
 
   // Social unlock resolvers (auto-resolves target MediaFire/Sfile link by default)
   const s2u = await resolver.sub2unlock("https://sub2unlock.io/example");
   console.log("Sub2Unlock destination URL:", s2u.result.url);
 
-  const rek = await resolver.rekonise("https://rekonise.com/craniums-free-midi-kit-mlpp6");
+  const rek = await resolver.rekonise(
+    "https://rekonise.com/craniums-free-midi-kit-mlpp6",
+  );
   console.log("Rekonise unlocked URL:", rek.result.url);
 
   // Shortlink & gateway resolvers
@@ -125,6 +134,46 @@ const { resolver } = require("@coflyn/scrapr");
 
   const raw = await resolver.unshorten("https://aka.ms/vscode");
   console.log("Unshortened URL:", raw.result.url);
+})();
+```
+
+### Anime (Otakudesu, Gogoanime)
+
+```javascript
+const { anime } = require("@coflyn/scrapr");
+
+(async () => {
+  // Search anime
+  const searchRes = await anime.gogoanime.search("Solo Leveling");
+  console.log("Found anime:", searchRes.result[0].title);
+
+  // List episodes
+  const epRes = await anime.gogoanime.getEpisodes(searchRes.result[0].url);
+  console.log(`Found ${epRes.result.length} episodes`);
+
+  // Scrape video streams / web player
+  const streamRes = await anime.gogoanime.scrape(epRes.result[0].url);
+  console.log("Stream links:", streamRes.result.downloads);
+})();
+```
+
+### Comic / Manga (Komikindo, Komiku, Asura Scans)
+
+```javascript
+const { comic } = require("@coflyn/scrapr");
+
+(async () => {
+  // Search comic
+  const searchRes = await comic.komiku.search("Solo Leveling");
+  console.log("Found comic:", searchRes.result[0].title);
+
+  // List chapters
+  const chRes = await comic.komiku.getChapters(searchRes.result[0].url);
+  console.log(`Found ${chRes.result.length} chapters`);
+
+  // Scrape chapter page images
+  const chapter = await comic.komiku.scrape(chRes.result[0].url);
+  console.log(`Found ${chapter.result.downloads.length} chapter images`);
 })();
 ```
 
@@ -222,106 +271,143 @@ For `youtube.playlist` and `bandcamp.bandcampdownloader`:
 
 ## 🔌 API Reference
 
-| Platform                                                                                       | Method                                      | Source Site                    |
-| :--------------------------------------------------------------------------------------------- | :------------------------------------------ | :----------------------------- |
-| <img src="https://cdn.simpleicons.org/applemusic/FA576E" width="16" height="16" /> Apple Music | `applemusic.aplmate(url)`                   | aplmate.com                    |
-| <img src="https://cdn.simpleicons.org/bilibili/00AEEC" width="16" height="16" /> Bilibili      | `bilibili.direct(url)`                      | api.bilibili.com / bilibili.tv |
-| <img src="https://cdn.simpleicons.org/tiktok/000000" width="16" height="16" /> Douyin          | `douyin.direct(url)`                        | direct page scrape             |
-| <img src="https://cdn.simpleicons.org/facebook/1877F2" width="16" height="16" /> Facebook      | `facebook.snapsave(url)`                    | snapsave.app                   |
-|                                                                                                | `facebook.fdown(url)`                       | fdown.net                      |
-| <img src="https://cdn.simpleicons.org/soundcloud/FF5500" width="16" height="16" /> SoundCloud  | `soundcloud.klickaud(url)`                  | klickaud.org                   |
-| <img src="https://cdn.simpleicons.org/tiktok/000000" width="16" height="16" /> TikTok          | `tiktok.snaptik(url)`                       | snaptik.app                    |
-|                                                                                                | `tiktok.tiktokio(url)`                      | tiktokio.com                   |
-|                                                                                                | `tiktok.savetik(url)`                       | savetik.co                     |
-|                                                                                                | `tiktok.ssstik(url)`                        | ssstik.io                      |
-|                                                                                                | `tiktok.tikdownloader(url)`                 | tikdownloader.io               |
-| <img src="https://cdn.simpleicons.org/youtube/FF0000" width="16" height="16" /> YouTube        | `youtube.ytmp3(url)`                        | ytmp3.mobi                     |
-|                                                                                                | `youtube.ytmp3gg(url)`                      | media.ytmp3.gg                 |
-|                                                                                                | `youtube.playlist(url)`                     | youtube.com/playlist           |
-| <img src="https://cdn.simpleicons.org/instagram/E4405F" width="16" height="16" /> Instagram    | `instagram.direct(url)`                     | direct embed scrape            |
-|                                                                                                | `instagram.indown(url)`                     | indown.net                     |
-|                                                                                                | `instagram.snapsave(url)`                   | snapsave.app                   |
-|                                                                                                | `instagram.snapinsta(url)`                  | snapinsta.to                   |
-| <img src="https://cdn.simpleicons.org/pinterest/E60023" width="16" height="16" /> Pinterest    | `pinterest.direct(url)`                     | direct page scrape             |
-|                                                                                                | `pinterest.pindown(url)`                    | pindown.io                     |
-| <img src="https://cdn.simpleicons.org/bandcamp/1DA1F2" width="16" height="16" /> Bandcamp      | `bandcamp.direct(url)`                      | direct page scrape             |
-|                                                                                                | `bandcamp.bandcampdownloader(url, options)` | bandcampdownloader.app         |
-| <img src="https://cdn.simpleicons.org/pixiv/0096FA" width="16" height="16" /> Pixiv            | `pixiv.ajax(url)`                           | pixiv.net (pixiv.re proxy)     |
-| <img src="https://cdn.simpleicons.org/xiaohongshu/FF2442" width="16" height="16" /> RedNote    | `rednote.direct(url)`                       | xiaohongshu.com / rednote      |
-| <img src="https://cdn.simpleicons.org/spotify/1ED760" width="16" height="16" /> Spotify        | `spotify.spotisaver(url)`                   | spotisaver.net                 |
-|                                                                                                | `spotify.spotidown(url)`                    | spotidown.app                  |
-|                                                                                                | `spotify.spotmate(url)`                     | spotmate.online                |
-|                                                                                                | `spotify.soundloaders(url)`                 | soundloaders.app               |
-| <img src="https://cdn.simpleicons.org/x/000000" width="16" height="16" /> Twitter / X          | `twitter.direct(url)`                       | api.fxtwitter.com              |
-|                                                                                                | `twitter.tweeload(url)`                     | tweeload.com                   |
-|                                                                                                | `twitter.tvd(url)`                          | twittervideodownloader.com     |
-|                                                                                                | `twitter.savetwt(url)`                      | savetwt.com                    |
-| <img src="https://cdn.simpleicons.org/threads/000000" width="16" height="16" /> Threads        | `threads.threadster(url)`                   | threadster.app                 |
-| <img src="https://cdn.simpleicons.org/reddit/FF4500" width="16" height="16" /> Reddit          | `reddit.rapidsave(url)`                     | rapidsave.com                  |
-| <img src="https://cdn.simpleicons.org/box/0061D5" width="16" height="16" /> TeraBox           | `terabox.sechno(url)`                       | sechno.com                     |
-| Resolver (File Host & Shortlink)                                                               | `resolver.mediafire(url)`                   | mediafire.com                  |
-|                                                                                                | `resolver.sfile(url)`                       | sfile.co / sfile.mobi          |
-|                                                                                                | `resolver.sub2unlock(url, options)`         | sub2unlock.com / sub4unlock    |
-|                                                                                                | `resolver.rekonise(url, options)`           | rekonise.com                   |
-|                                                                                                | `resolver.safelinku(url, options)`          | safelinku.com / sfl.gl         |
+| Platform                                                                                       | Method                                      | Source Site                                 |
+| :--------------------------------------------------------------------------------------------- | :------------------------------------------ | :------------------------------------------ |
+| <img src="https://cdn.simpleicons.org/applemusic/FA576E" width="16" height="16" /> Apple Music | `applemusic.aplmate(url)`                   | aplmate.com                                 |
+| <img src="https://cdn.simpleicons.org/bilibili/00AEEC" width="16" height="16" /> Bilibili      | `bilibili.direct(url)`                      | api.bilibili.com / bilibili.tv              |
+| <img src="https://cdn.simpleicons.org/tiktok/000000" width="16" height="16" /> Douyin          | `douyin.direct(url)`                        | direct page scrape                          |
+| <img src="https://cdn.simpleicons.org/facebook/1877F2" width="16" height="16" /> Facebook      | `facebook.snapsave(url)`                    | snapsave.app                                |
+|                                                                                                | `facebook.fdown(url)`                       | fdown.net                                   |
+| <img src="https://cdn.simpleicons.org/soundcloud/FF5500" width="16" height="16" /> SoundCloud  | `soundcloud.klickaud(url)`                  | klickaud.org                                |
+| <img src="https://cdn.simpleicons.org/tiktok/000000" width="16" height="16" /> TikTok          | `tiktok.snaptik(url)`                       | snaptik.app                                 |
+|                                                                                                | `tiktok.tiktokio(url)`                      | tiktokio.com                                |
+|                                                                                                | `tiktok.savetik(url)`                       | savetik.co                                  |
+|                                                                                                | `tiktok.ssstik(url)`                        | ssstik.io                                   |
+|                                                                                                | `tiktok.tikdownloader(url)`                 | tikdownloader.io                            |
+| <img src="https://cdn.simpleicons.org/youtube/FF0000" width="16" height="16" /> YouTube        | `youtube.ytmp3(url)`                        | ytmp3.mobi                                  |
+|                                                                                                | `youtube.ytmp3gg(url)`                      | media.ytmp3.gg                              |
+|                                                                                                | `youtube.playlist(url)`                     | youtube.com/playlist                        |
+| <img src="https://cdn.simpleicons.org/instagram/E4405F" width="16" height="16" /> Instagram    | `instagram.direct(url)`                     | direct embed scrape                         |
+|                                                                                                | `instagram.indown(url)`                     | indown.net                                  |
+|                                                                                                | `instagram.snapsave(url)`                   | snapsave.app                                |
+|                                                                                                | `instagram.snapinsta(url)`                  | snapinsta.to                                |
+| <img src="https://cdn.simpleicons.org/pinterest/E60023" width="16" height="16" /> Pinterest    | `pinterest.direct(url)`                     | direct page scrape                          |
+|                                                                                                | `pinterest.pindown(url)`                    | pindown.io                                  |
+| <img src="https://cdn.simpleicons.org/bandcamp/1DA1F2" width="16" height="16" /> Bandcamp      | `bandcamp.direct(url)`                      | direct page scrape                          |
+|                                                                                                | `bandcamp.bandcampdownloader(url, options)` | bandcampdownloader.app                      |
+| <img src="https://cdn.simpleicons.org/pixiv/0096FA" width="16" height="16" /> Pixiv            | `pixiv.ajax(url)`                           | pixiv.net (pixiv.re proxy)                  |
+| <img src="https://cdn.simpleicons.org/xiaohongshu/FF2442" width="16" height="16" /> RedNote    | `rednote.direct(url)`                       | xiaohongshu.com / rednote                   |
+| <img src="https://cdn.simpleicons.org/spotify/1ED760" width="16" height="16" /> Spotify        | `spotify.spotisaver(url)`                   | spotisaver.net                              |
+|                                                                                                | `spotify.spotidown(url)`                    | spotidown.app                               |
+|                                                                                                | `spotify.spotmate(url)`                     | spotmate.online                             |
+|                                                                                                | `spotify.soundloaders(url)`                 | soundloaders.app                            |
+| <img src="https://cdn.simpleicons.org/x/000000" width="16" height="16" /> Twitter / X          | `twitter.direct(url)`                       | api.fxtwitter.com                           |
+|                                                                                                | `twitter.tweeload(url)`                     | tweeload.com                                |
+|                                                                                                | `twitter.tvd(url)`                          | twittervideodownloader.com                  |
+|                                                                                                | `twitter.savetwt(url)`                      | savetwt.com                                 |
+| <img src="https://cdn.simpleicons.org/threads/000000" width="16" height="16" /> Threads        | `threads.threadster(url)`                   | threadster.app                              |
+| <img src="https://cdn.simpleicons.org/reddit/FF4500" width="16" height="16" /> Reddit          | `reddit.rapidsave(url)`                     | rapidsave.com                               |
+| <img src="https://cdn.simpleicons.org/box/0061D5" width="16" height="16" /> TeraBox            | `terabox.sechno(url)`                       | sechno.com                                  |
+| Resolver (File Host & Shortlink)                                                               | `resolver.mediafire(url)`                   | mediafire.com                               |
+|                                                                                                | `resolver.sfile(url)`                       | sfile.co / sfile.mobi                       |
+|                                                                                                | `resolver.sub2unlock(url, options)`         | sub2unlock.com / sub4unlock                 |
+|                                                                                                | `resolver.rekonise(url, options)`           | rekonise.com                                |
+|                                                                                                | `resolver.safelinku(url, options)`          | safelinku.com / sfl.gl                      |
 |                                                                                                | `resolver.unshorten(url, options)`          | universal shortlinks (dub.sh, bit.ly, etc.) |
-|                                                                                                | `resolver.pixeldrain(url)`                  | pixeldrain.com                 |
-|                                                                                                | `resolver.catbox(url)`                      | catbox.moe / litter.catbox.moe |
-|                                                                                                | `resolver.gdrive(url)`                      | drive.google.com               |
-|                                                                                                | `resolver.krakenfiles(url)`                 | krakenfiles.com                |
-|                                                                                                | `resolver.doodstream(url)`                  | dood.to / ds2play.com          |
+|                                                                                                | `resolver.pixeldrain(url)`                  | pixeldrain.com                              |
+|                                                                                                | `resolver.catbox(url)`                      | catbox.moe / litter.catbox.moe              |
+|                                                                                                | `resolver.gdrive(url)`                      | drive.google.com                            |
+|                                                                                                | `resolver.krakenfiles(url)`                 | krakenfiles.com                             |
+|                                                                                                | `resolver.doodstream(url)`                  | dood.to / ds2play.com                       |
+| Anime (Otakudesu, Gogoanime, etc.)                                                             | `anime.otakudesu.scrape(url)`               | otakudesu.best                              |
+|                                                                                                | `anime.otakudesu.search(query)`             | otakudesu.best                              |
+|                                                                                                | `anime.otakudesu.getEpisodes(animeUrl)`     | otakudesu.best                              |
+|                                                                                                | `anime.gogoanime.scrape(url)`               | gogoanime / megaplay.buzz                   |
+|                                                                                                | `anime.gogoanime.search(query)`             | gogoanime                                   |
+|                                                                                                | `anime.gogoanime.getEpisodes(animeUrl)`     | gogoanime                                   |
+|                                                                                                | `anime.nimegami.scrape(url)`                | nimegami.id                                 |
+|                                                                                                | `anime.animetosho.scrape(url)`              | animetosho.org                              |
+| Comic / Manga (Komikindo, Komiku, etc.)                                                        | `comic.komikindo.scrape(url)`               | komikindo.ch                                |
+|                                                                                                | `comic.komikindo.search(query)`             | komikindo.ch                                |
+|                                                                                                | `comic.komikindo.getChapters(comicUrl)`     | komikindo.ch                                |
+|                                                                                                | `comic.komiku.scrape(url)`                  | komiku.org                                  |
+|                                                                                                | `comic.komiku.search(query)`                | api.komiku.org                              |
+|                                                                                                | `comic.komiku.getChapters(comicUrl)`        | komiku.org                                  |
+|                                                                                                | `comic.asurascans.scrape(url)`              | asuracomic.net                              |
+|                                                                                                | `comic.asurascans.search(query)`            | asuracomic.net                              |
+|                                                                                                | `comic.asurascans.getChapters(comicUrl)`    | asuracomic.net                              |
+|                                                                                                | `comic.kiryuu.scrape(url)`                  | kiryuu.org                                  |
+|                                                                                                | `comic.komikcast.scrape(url)`               | komikcast.bz                                |
+|                                                                                                | `comic.mangadex.scrape(url)`                | mangadex.org                                |
+|                                                                                                | `comic.bacakomik.scrape(url)`               | bacakomik.net                               |
+|                                                                                                | `comic.manhwaindo.scrape(url)`              | manhwaindo.id                               |
+|                                                                                                | `comic.mangabats.scrape(url)`               | mangabats.com                               |
 
 ---
 
 ## ⚡ Performance
 
-| Platform    | Scraper              | Avg Time  | Reliability | Notes                                       |
-| ----------- | -------------------- | --------- | ----------- | ------------------------------------------- |
-| Apple Music | `aplmate`            | ~3-5s     | ⚪ Medium   | Turnstile bypass, sometimes noise           |
-| Bilibili    | `direct`             | ~0.3-0.5s | 🟢 High     | Direct Bilibili view/playurl API            |
-| Douyin      | `direct`             | ~1-2s     | 🟢 High     | Direct iesdouyin SSR + ttwid handshake + WAF solver |
-| Facebook    | `snapsave`           | ~4-8s     | 🟢 High     | Packed JS unpacker, dual stream             |
-| Facebook    | `fdown`              | ~8-15s    | 🟡 Medium   | Puppeteer + Chrome, Cloudflare bypass       |
-| SoundCloud  | `klickaud`           | ~4-6s     | 🟢 High     | Dynamic CSRF + SSE capability grant         |
-| TikTok      | `tiktokio`           | ~1-2s     | 🟢 High     | JSON API, rich metadata                     |
-| TikTok      | `snaptik`            | ~0.5-2s   | 🟢 High     | Challenge-response AES, IP-safe             |
-| TikTok      | `ssstik`             | ~1-2s     | 🟢 High     | Axios + Cheerio, lightweight                |
-| TikTok      | `savetik`            | ~5-8s     | 🟢 High     | High quality streams, active                |
-| TikTok      | `tikdownloader`      | ~0.5-1s   | 🟢 High     | Direct tikdownloader.io extraction          |
-| YouTube     | `ytmp3`              | ~6-10s    | 🟢 High     | Init + poll, reliable                       |
-| YouTube     | `playlist`           | ~2-3s     | 🟢 High     | Parsed via ytInitialData lockupViewModel    |
-| Instagram   | `direct`             | ~0.5-1s   | 🟢 High     | Native embed captioned JSON, zero 3rd party |
-| Instagram   | `indown`             | ~1-2s     | 🟢 High     | Direct indown.net API, zero Cloudflare block|
-| Instagram   | `snapsave`           | ~0.2-1s   | 🟢 High     | Obfuscated script unpacker & rapidcdn stream|
-| Instagram   | `snapinsta`          | ~10-15s   | 🟢 High     | Playwright stealth + auto-detect system Chrome |
-| Pinterest   | `direct`             | ~0.5-1s   | 🟢 High     | Direct page parsing + pinimg extraction     |
-| Pinterest   | `pindown`            | ~1-2s     | 🟢 High     | AES-256-CBC challenge solver & dynamic seed |
-| Bandcamp    | `direct`             | ~0.5-1s   | 🟢 High     | Direct Bandcamp tralbum data & stream extraction |
-| Bandcamp    | `bandcampdownloader` | ~1-2s     | 🟢 High     | Token CSRF with direct fallback             |
-| Pixiv       | `ajax`               | ~0.4s     | 🟢 High     | Official oEmbed + pixiv.re proxy fallback   |
-| RedNote     | `direct`             | ~1-2s     | 🟢 High     | SSR state + OpenGraph parsing               |
-| Reddit      | `rapidsave`          | ~1-2s     | 🟢 High     | RapidSave video + separate audio stream     |
-| TeraBox     | `sechno`             | ~1-3s     | 🟢 High     | Direct download link + fast m3u8 streaming  |
-| Resolver    | `mediafire`          | ~0.5-1.0s | 🟢 High     | Direct MediaFire button & CDN link resolver |
-| Resolver    | `sfile`              | ~0.4-0.8s | 🟢 High     | Direct Sfile session & CDN resolver         |
-| Resolver    | `sub2unlock`         | ~0.8-1.5s | 🟡 Medium   | Supports sub2unlock.io & sub2unlock.com     |
-| Resolver    | `rekonise`           | ~11-13s   | 🟢 High     | Action handshake + server timer compliance  |
-| Resolver    | `safelinku`          | ~2.5-4s   | 🟢 High     | Gateway API handshake & file auto-resolve   |
-| Resolver    | `unshorten`          | ~0.5-1.5s | 🟢 High     | HTTP redirection chain & file auto-resolve  |
-| Resolver    | `pixeldrain`         | ~0.3-0.8s | 🟢 High     | REST API info/stat & direct link extraction |
-| Resolver    | `catbox`             | ~0.5-1.2s | 🟢 High     | Direct file & collection scraping           |
-| Resolver    | `gdrive`             | ~0.5-1.0s | 🟢 High     | File ID extraction, title & CDN download link |
-| Resolver    | `krakenfiles`        | ~1.0-1.5s | 🟢 High     | Page metadata, file size & download link    |
-| Resolver    | `doodstream`         | ~0.8-1.5s | 🟡 Medium   | Pass token extraction (subject to WAF)      |
-| Spotify     | `spotisaver`         | ~2s       | 🟢 High     | Fast signature handshake, direct MP3 stream |
-| Spotify     | `spotidown`          | ~2-3s     | 🟢 High     | Token injection, supports albums/tracks      |
-| Spotify     | `spotmate`           | ~4-6s     | 🟢 High     | Spotimate API with userverify handshake     |
-| Spotify     | `soundloaders`       | ~3-5s     | 🟢 High     | Migrated to spotimate.app multipart stream  |
-| Twitter / X | `direct`             | ~0.3-1s   | 🟢 High     | Direct FxTwitter CDN resolver               |
-| Twitter / X | `tweeload`           | ~2-4s     | 🟢 High     | Multi-quality                               |
-| Twitter / X | `tvd`                | ~0.5-2s   | 🟢 High     | TVD with direct FxTwitter fallback          |
-| Twitter / X | `savetwt`            | ~0.5-2s   | 🟢 High     | SaveTWT with x.com normalization & fallback |
+| Platform    | Scraper              | Avg Time  | Reliability | Notes                                                   |
+| ----------- | -------------------- | --------- | ----------- | ------------------------------------------------------- |
+| Apple Music | `aplmate`            | ~3-5s     | ⚪ Medium   | Turnstile bypass, sometimes noise                       |
+| Bilibili    | `direct`             | ~0.3-0.5s | 🟢 High     | Direct Bilibili view/playurl API                        |
+| Douyin      | `direct`             | ~1-2s     | 🟢 High     | Direct iesdouyin SSR + ttwid handshake + WAF solver     |
+| Facebook    | `snapsave`           | ~4-8s     | 🟢 High     | Packed JS unpacker, dual stream                         |
+| Facebook    | `fdown`              | ~8-15s    | 🟡 Medium   | Puppeteer + Chrome, Cloudflare bypass                   |
+| SoundCloud  | `klickaud`           | ~4-6s     | 🟢 High     | Dynamic CSRF + SSE capability grant                     |
+| TikTok      | `tiktokio`           | ~1-2s     | 🟢 High     | JSON API, rich metadata (supports `tt.site`)            |
+| TikTok      | `snaptik`            | ~0.5-2s   | 🟢 High     | Challenge-response AES, IP-safe (supports `tt.site`)    |
+| TikTok      | `ssstik`             | ~1-2s     | 🟢 High     | Axios + Cheerio, lightweight (supports `tt.site`)       |
+| TikTok      | `savetik`            | ~5-8s     | 🟢 High     | High quality streams, active (supports `tt.site`)       |
+| TikTok      | `tikdownloader`      | ~0.5-1s   | 🟢 High     | Direct extraction (supports `tt.site`)                  |
+| YouTube     | `ytmp3`              | ~6-10s    | 🟢 High     | Init + poll, reliable                                   |
+| YouTube     | `ytmp3gg`            | ~1-3s     | 🟢 High     | Fast direct API scraper                                 |
+| YouTube     | `playlist`           | ~2-3s     | 🟢 High     | Parsed via ytInitialData lockupViewModel                |
+| Instagram   | `direct`             | ~0.5-1s   | 🟢 High     | Native embed captioned JSON, zero 3rd party             |
+| Instagram   | `indown`             | ~1-2s     | 🟢 High     | Direct indown.net API, zero Cloudflare block            |
+| Instagram   | `snapsave`           | ~0.2-1s   | 🟢 High     | Obfuscated script unpacker & rapidcdn stream            |
+| Instagram   | `snapinsta`          | ~10-15s   | 🟢 High     | Playwright stealth + auto-detect system Chrome          |
+| Pinterest   | `direct`             | ~0.5-1s   | 🟢 High     | Direct page parsing + pinimg extraction                 |
+| Pinterest   | `pindown`            | ~1-2s     | 🟢 High     | AES-256-CBC challenge solver & dynamic seed             |
+| Bandcamp    | `direct`             | ~0.5-1s   | 🟢 High     | Direct Bandcamp tralbum data & stream extraction        |
+| Bandcamp    | `bandcampdownloader` | ~1-2s     | 🟢 High     | Token CSRF with direct fallback                         |
+| Pixiv       | `ajax`               | ~0.4s     | 🟢 High     | Official oEmbed + pixiv.re proxy fallback               |
+| RedNote     | `direct`             | ~1-2s     | 🟢 High     | SSR state + OpenGraph parsing                           |
+| Reddit      | `rapidsave`          | ~1-2s     | 🟢 High     | RapidSave video + separate audio stream                 |
+| TeraBox     | `sechno`             | ~1-3s     | 🟢 High     | Direct download link + fast m3u8 streaming              |
+| Resolver    | `mediafire`          | ~0.5-1.0s | 🟢 High     | Direct MediaFire button & CDN link resolver             |
+| Resolver    | `sfile`              | ~0.4-0.8s | 🟢 High     | Direct Sfile session & CDN resolver                     |
+| Resolver    | `sub2unlock`         | ~0.8-1.5s | 🟡 Medium   | Supports sub2unlock.io & sub2unlock.com                 |
+| Resolver    | `rekonise`           | ~11-13s   | 🟢 High     | Action handshake + server timer compliance              |
+| Resolver    | `safelinku`          | ~2.5-4s   | 🟢 High     | Gateway API handshake & file auto-resolve               |
+| Resolver    | `unshorten`          | ~0.5-1.5s | 🟢 High     | HTTP redirection chain & file auto-resolve              |
+| Resolver    | `pixeldrain`         | ~0.3-0.8s | 🟢 High     | REST API info/stat & direct link extraction             |
+| Resolver    | `catbox`             | ~0.5-1.2s | 🟢 High     | Direct file & collection scraping                       |
+| Resolver    | `gdrive`             | ~0.5-1.0s | 🟢 High     | File ID extraction, title & CDN download link           |
+| Resolver    | `krakenfiles`        | ~1.0-1.5s | 🟢 High     | Page metadata, file size & download link                |
+| Resolver    | `doodstream`         | ~0.8-1.5s | 🟡 Medium   | Pass token extraction (subject to WAF)                  |
+| Spotify     | `spotisaver`         | ~2s       | 🟢 High     | Fast signature handshake, direct MP3 stream             |
+| Spotify     | `spotidown`          | ~2-3s     | 🟢 High     | Token injection, supports albums/tracks                 |
+| Spotify     | `spotmate`           | ~4-6s     | 🟢 High     | Spotimate API with userverify handshake                 |
+| Spotify     | `soundloaders`       | ~3-5s     | 🟢 High     | Migrated to spotimate.app multipart stream              |
+| Twitter / X | `direct`             | ~0.3-1s   | 🟢 High     | Direct FxTwitter CDN resolver                           |
+| Twitter / X | `tweeload`           | ~2-4s     | 🟢 High     | Multi-quality                                           |
+| Twitter / X | `tvd`                | ~0.5-2s   | 🟢 High     | TVD with direct FxTwitter fallback                      |
+| Twitter / X | `savetwt`            | ~0.5-2s   | 🟢 High     | SaveTWT with x.com normalization & fallback             |
 | Threads     | `threadster`         | ~2-4s     | 🟡 Medium   | Threadster API with JWT token decoding & cookie session |
+| Anime       | `otakudesu`          | ~0.8-1.5s | 🟢 High     | Batch & individual episode mirrors resolver             |
+| Anime       | `gogoanime`          | ~1.5-2.5s | 🟢 High     | Pure Node crypto AES-256 decryptor + Web Player stream  |
+| Anime       | `nimegami`           | ~0.5-1.2s | 🟢 High     | Multi-res stream & mirror extraction                    |
+| Anime       | `animetosho`         | ~0.5-1.0s | 🟢 High     | Torrent, magnet URI, & DDL mirror links                 |
+| Comic       | `komikindo`          | ~0.2-0.5s | 🟢 High     | Fast chapter image parsing with color badge handling    |
+| Comic       | `komiku`             | ~0.3-0.7s | 🟢 High     | Official REST API search + chapter image crawler        |
+| Comic       | `asurascans`         | ~0.2-0.5s | 🟢 High     | Direct CDN chapter image extractor                      |
+| Comic       | `kiryuu`             | ~0.3-0.8s | 🟢 High     | Direct chapter image extractor                          |
+| Comic       | `komikcast`          | ~0.4-0.9s | 🟢 High     | Multi-mirror CDN reader                                 |
+| Comic       | `mangadex`           | ~0.3-0.6s | 🟢 High     | Official MangaDex@Home CDN API resolver                 |
+| Comic       | `bacakomik`          | ~0.4-0.8s | 🟢 High     | Chapter image crawler                                   |
+| Comic       | `manhwaindo`         | ~0.3-0.7s | 🟢 High     | Chapter image crawler                                   |
+| Comic       | `mangabats`          | ~0.5-1.0s | 🟢 High     | Multi-chapter CDN image extractor                       |
 
 ---
 

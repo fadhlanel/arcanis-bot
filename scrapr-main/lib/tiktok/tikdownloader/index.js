@@ -33,9 +33,15 @@ function fetchWithCurl(url, options = {}) {
 
 async function scrape(url) {
   try {
-    const cleanUrl = url.trim().split("?")[0];
+    const cleanUrl = url
+      .trim()
+      .split("?")[0]
+      .replace(
+        /^(?:https?:\/\/)?(?:www\.)?tt\.site\/(?:t\/)?/i,
+        "https://vt.tiktok.com/",
+      );
     const regex =
-      /https:\/\/(?:m|www|vm|vt|lite)?\.?tiktok\.com\/((?:.*\b(?:(?:usr|v|embed|user|video|photo)\/|\?shareId=|\&item_id=)(\d+))|\w+)/;
+      /https:\/\/(?:(?:m|www|vm|vt|lite)?\.?tiktok\.com\/((?:.*\b(?:(?:usr|v|embed|user|video|photo)\/|\?shareId=|\&item_id=)(\d+))|\w+)|(?:www\.)?tt\.site\/(?:t\/)?[a-zA-Z0-9_-]+)/;
     if (!regex.test(cleanUrl)) {
       throw new Error("Must be a valid TikTok URL.");
     }
@@ -105,9 +111,14 @@ async function scrape(url) {
       ) {
         downloads.push({ quality: "720p", type: "video", url: href });
       } else if (text.includes("mp4 [2]")) {
-        downloads.push({ quality: "720p", type: "video", url: href });
+        downloads.push({
+          quality: "720p",
+          type: "video",
+          url: href,
+          isMirror: true,
+        });
       } else if (text.includes("mp3") || text.includes("audio")) {
-        downloads.push({ quality: "audio", type: "audio", url: href });
+        downloads.push({ quality: "MP3", type: "audio", url: href });
       } else if (text.includes("photo") || text.includes("image")) {
         downloads.push({ quality: "photo", type: "photo", url: href });
       }

@@ -110,7 +110,8 @@ async function updateViaGit(force) {
     let needNpm = false;
     try {
         const changedFiles = (await run(`git diff --name-only ${oldRev} ${newRev}`).catch(() => '')).trim();
-        needNpm = changedFiles.split(/\r?\n/).some(f => f.trim() === 'package.json');
+        // package.json root ATAU scrapr-main/package.json (vendored scraper) berubah → refresh node_modules
+        needNpm = changedFiles.split(/\r?\n/).some(f => /^(package\.json|scrapr-main\/package\.json)$/.test(f.trim()));
         if (needNpm) {
             const hasLock = fs.existsSync(path.join(ROOT_DIR, 'package-lock.json'));
             await run(hasLock ? 'npm ci --omit=dev --no-audit --no-fund' : 'npm install --omit=dev --no-audit --no-fund');
@@ -326,15 +327,16 @@ async function updateViaZip(zipUrl, expectedHash) {
             fs.writeFileSync(path.join(ROOT_DIR, '.commit_version'), newSha);
         } catch {}
 
-        // Cek apakah package.json berubah dibanding backup
+        // Cek apakah package.json root atau scrapr-main berubah dibanding backup
         try {
-            const oldPkg = path.join(backupDir, 'package.json');
-            const newPkg = path.join(ROOT_DIR, 'package.json');
-            if (fs.existsSync(oldPkg) && fs.existsSync(newPkg)) {
-                const oldContent = fs.readFileSync(oldPkg, 'utf8');
-                const newContent = fs.readFileSync(newPkg, 'utf8');
-                if (oldContent !== newContent) {
+            const pkgRels = ['package.json', path.join('scrapr-main', 'package.json')];
+            for (const rel of pkgRels) {
+                const oldPkg = path.join(backupDir, rel);
+                const newPkg = path.join(ROOT_DIR, rel);
+                if (fs.existsSync(oldPkg) && fs.existsSync(newPkg)
+                    && fs.readFileSync(oldPkg, 'utf8') !== fs.readFileSync(newPkg, 'utf8')) {
                     await run('npm install --omit=dev --no-audit --no-fund');
+                    break;
                 }
             }
         } catch (npmErr) {
