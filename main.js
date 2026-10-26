@@ -684,9 +684,11 @@ async function handleMessages(sock, messageUpdate, printLog) {
             case userMessage === '.github':
             case userMessage === '.sc':
             case userMessage === '.script':
-            case userMessage === '.repo':
-                await sock.sendMessage(chatId, { text: '❌ Repository integration disabled.' }, { quoted: message });
+            case userMessage === '.repo': {
+                const repoSlug = process.env.GITHUB_REPO || 'fadhlanel/arcanis-bot';
+                await sock.sendMessage(chatId, { text: `🐙 Repo bot: https://github.com/${repoSlug}` }, { quoted: message });
                 break;
+            }
             case userMessage.startsWith('.antibadword'):
                 if (!isGroup) {
                     await sock.sendMessage(chatId, { text: 'This command can only be used in groups.' }, { quoted: message });
@@ -843,7 +845,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
             case userMessage.startsWith('.play') || userMessage.startsWith('.mp3') || userMessage.startsWith('.ytmp3') || userMessage.startsWith('.song'):
                 await songCommand(sock, chatId, message);
                 break;
-            case userMessage === '.pin' || userMessage.startsWith('.pin '):
+            case userMessage === '.pin' || (userMessage.startsWith('.pin ') && !/https?:\/\/|www\./i.test(userMessage.slice(5))):
                 await pinCommand(sock, chatId, message);
                 break;
             case userMessage === '.unpin':
