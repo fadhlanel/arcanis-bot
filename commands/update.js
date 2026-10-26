@@ -363,18 +363,12 @@ async function updateViaZip(zipUrl, expectedHash) {
 
 async function restart(sock, chatId, message) {
     try {
-        await sock.sendMessage(chatId, { text: '✅ Update selesai! Me-restart bot…' }, { quoted: message });
+        await sock.sendMessage(chatId, { text: '✅ Update selesai! Bot akan restart otomatis…' }, { quoted: message });
     } catch {}
-    
-    setTimeout(() => {
-        try {
-            if (process.env.pm_id !== undefined) {
-                exec(`pm2 restart ${process.env.pm_id}`);
-                return;
-            }
-        } catch {}
-        process.exit(0);
-    }, 1500);
+
+    // 42 = kode khusus "minta restart" yang ditangkap supervisor (index.js).
+    // Berlaku di panel hosting, terminal biasa, maupun PM2 — tanpa bergantung pm_id.
+    setTimeout(() => process.exit(42), 1500);
 }
 
 async function updateCommand(sock, chatId, message, args = []) {
