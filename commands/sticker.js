@@ -1,4 +1,4 @@
-const { downloadMediaMessage, generateWAMessageFromContent, proto } = require('@whiskeysockets/baileys');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
