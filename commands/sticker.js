@@ -1,21 +1,175 @@
-const { downloadMediaMessage } = require('@whiskeysockets/baileys');
-const { exec } = require('child_process');
+const { downloadMediaMessage, generateWAMessageFromContent, proto } = require('@whiskeysockets/baileys');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const settings = require('../settings');
-const webp = require('node-webpmux');
-const crypto = require('crypto');
 
-async function stickerCommand(sock, chatId, message) {
-    // The message that will be quoted in the reply.
+const {
+    MAX_VIDEO_INPUT_BYTES,
+    ensureTmpDir,
+    classifyAndValidateMedia,
+    convertImageBufferToSticker,
+    convertVideoFileToAnimatedSticker,
+    processAudioStickerPipeline
+} = require('../lib/stickerMedia');
+const {
+    DEFAULT_SESSION_TTL_MS,
+    PROMPT_MARKER,
+    extractActorIds,
+    createStickerSession,
+    attachPromptMessageId,
+    parseStickerCallback,
+    acquireStickerSession,
+    completeStickerSession
+} = require('../lib/stickerSession');
+
+/**
+ * Formats a user-friendly error message for sticker conversion failures.
+ * @param {Error} error
+ * @returns {string}
+ */
+function formatStickerErrorMessage(error) {
+    switch (error?.code) {
+        case 'INVALID_VIDEO':
+            return `❌ ${error.message || 'Video tidak valid atau rusak.'}`;
+        case 'NO_AUDIO_STREAM':
+            return `❌ ${error.message || 'Video tidak memiliki audio stream.'}`;
+        case 'UNSUPPORTED_AUDIO_FORMAT':
+            return `❌ ${error.message || 'Format audio pada video tidak didukung.'}`;
+        case 'AUDIO_TRANSCODE_FAILED':
+        case 'TRANSCODE_FAILED':
+            return `❌ ${error.message || 'Proses konversi media gagal. Coba gunakan video lain.'}`;
+        case 'SIZE_EXCEEDED':
+        case 'DURATION_EXCEEDED':
+            return `❌ ${error.message || 'Durasi atau ukuran melebihi batas sticker WhatsApp.'}`;
+        case 'FFMPEG_MISSING':
+            return '❌ Layanan konversi media (FFmpeg) belum tersedia di server.';
+        default:
+            return '❌ Gagal membuat sticker! Pastikan file valid dan coba lagi nanti.';
+    }
+}
+
+/**
+ * Sends an interactive 2-button prompt asking the user to choose between
+ * animated sticker without audio or audio sticker.
+ * Falls back gracefully to a numbered text prompt if `relayMessage` is unavailable or fails.
+ * @param {object} sock
+ * @param {string} chatId
+ * @param {object} messageToQuote
+ * @param {string} requestId
+ * @param {number} ttlMs
+ * @returns {Promise<string|null>} Prompt message key ID
+ */
+async function sendStickerChoicePrompt(sock, chatId, messageToQuote, requestId, ttlMs = DEFAULT_SESSION_TTL_MS) {
+    const ttlMinutes = Math.max(1, Math.round(ttlMs / 60000));
+    const bodyText = [
+        `🎬 *${PROMPT_MARKER}*`,
+        '',
+        'Pilih jenis sticker animasi untuk video ini:',
+        '1️⃣ 🔇 *Sticker Tanpa Audio*',
+        '2️⃣ 🔊 *Sticker Dengan Audio*',
+        '',
+        `_Ketuk salah satu tombol di bawah, atau balas pesan ini dengan angka *1* atau *2*._`
+    ].join('\n');
+    const footerText = `Berlaku ${ttlMinutes} menit • Hanya pengirim video yang dapat memilih`;
+
+    if (typeof sock.relayMessage === 'function') {
+        try {
+            const interactiveMsg = generateWAMessageFromContent(
+                chatId,
+                {
+                    viewOnceMessage: {
+                        message: {
+                            messageContextInfo: {
+                                deviceListMetadata: {},
+                                deviceListMetadataVersion: 2
+                            },
+                            interactiveMessage: proto.Message.InteractiveMessage.create({
+                                header: proto.Message.InteractiveMessage.Header.create({
+                                    title: 'Konversi Video ke Sticker',
+                                    hasMediaAttachment: false
+                                }),
+                                body: proto.Message.InteractiveMessage.Body.create({
+                                    text: bodyText
+                                }),
+                                footer: proto.Message.InteractiveMessage.Footer.create({
+                                    text: footerText
+                                }),
+                                nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
+                                    buttons: [
+                                        {
+                                            name: 'quick_reply',
+                                            buttonParamsJson: JSON.stringify({
+                                                display_text: '🔇 Sticker Tanpa Audio',
+                                                id: `stk_opt:no_audio:${requestId}`
+                                            })
+                                        },
+                                        {
+                                            name: 'quick_reply',
+                                            buttonParamsJson: JSON.stringify({
+                                                display_text: '🔊 Sticker Dengan Audio',
+                                                id: `stk_opt:with_audio:${requestId}`
+                                            })
+                                        }
+                                    ]
+                                })
+                            })
+                        }
+                    }
+                },
+                {
+                    quoted: messageToQuote,
+                    userJid: sock.user?.id
+                }
+            );
+
+            await sock.relayMessage(chatId, interactiveMsg.message, {
+                messageId: interactiveMsg.key.id,
+                additionalNodes: [
+                    {
+                        tag: 'biz',
+                        attrs: {},
+                        content: [
+                            {
+                                tag: 'interactive',
+                                attrs: { type: 'native_flow', v: '1' },
+                                content: [
+                                    { tag: 'native_flow', attrs: { name: 'quick_reply' } }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            });
+
+            return interactiveMsg?.key?.id || null;
+        } catch (relayErr) {
+            console.warn('[STICKER] Interactive prompt relay failed, falling back to text prompt:', relayErr?.message || relayErr);
+        }
+    }
+
+    const fallbackMsg = await sock.sendMessage(
+        chatId,
+        { text: `${bodyText}\n\n_${footerText}_` },
+        { quoted: messageToQuote }
+    );
+    return fallbackMsg?.key?.id || null;
+}
+
+/**
+ * Handles `.sticker` / `.s` command for both static images and videos/GIFs.
+ * Static images are converted immediately (preserving legacy behavior).
+ * Videos are validated, cached into an isolated session, and presented with 2 choices.
+ * @param {object} sock
+ * @param {string} chatId
+ * @param {object} message
+ * @param {object} [deps]
+ */
+async function stickerCommand(sock, chatId, message, deps = {}) {
     const messageToQuote = message;
-    
-    // The message object that contains the media to be downloaded.
     let targetMessage = message;
 
     // If the message is a reply, the target media is in the quoted message.
     if (message.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
-        // We need to build a new message object for downloadMediaMessage to work correctly.
         const quotedInfo = message.message.extendedTextMessage.contextInfo;
         targetMessage = {
             key: {
@@ -27,175 +181,205 @@ async function stickerCommand(sock, chatId, message) {
         };
     }
 
-    const mediaMessage = targetMessage.message?.imageMessage || targetMessage.message?.videoMessage || targetMessage.message?.documentMessage;
+    const mediaMessage =
+        targetMessage.message?.imageMessage ||
+        targetMessage.message?.videoMessage ||
+        targetMessage.message?.documentMessage;
 
     if (!mediaMessage) {
-        await sock.sendMessage(chatId, { 
-            text: 'Please reply to an image/video with .sticker, or send an image/video with .sticker as the caption.',
-        },{ quoted: messageToQuote });
+        await sock.sendMessage(chatId, {
+            text: 'Please reply to an image/video with .sticker, or send an image/video with .sticker as the caption.'
+        }, { quoted: messageToQuote });
         return;
     }
 
     try {
-        const mediaBuffer = await downloadMediaMessage(targetMessage, 'buffer', {}, { 
-            logger: undefined, 
-            reuploadRequest: sock.updateMediaMessage 
-        });
-
-        if (!mediaBuffer) {
-            await sock.sendMessage(chatId, { 
-                text: 'Failed to download media. Please try again.',
-            });
+        // Early file size guard before downloading large videos
+        const declaredSize = Number(mediaMessage.fileLength || 0);
+        if (declaredSize > MAX_VIDEO_INPUT_BYTES) {
+            await sock.sendMessage(chatId, {
+                text: `❌ Ukuran file (${(declaredSize / (1024 * 1024)).toFixed(1)} MB) melebihi batas maksimal ${MAX_VIDEO_INPUT_BYTES / (1024 * 1024)} MB.`
+            }, { quoted: messageToQuote });
             return;
         }
 
-        // Create temp directory if it doesn't exist
-        const tmpDir = path.join(process.cwd(), 'tmp');
-        if (!fs.existsSync(tmpDir)) {
-            fs.mkdirSync(tmpDir, { recursive: true });
-        }
-
-        // Generate temp file paths
-        const tempInput = path.join(tmpDir, `temp_${Date.now()}`);
-        const tempOutput = path.join(tmpDir, `sticker_${Date.now()}.webp`);
-
-        // Write media to temp file
-        fs.writeFileSync(tempInput, mediaBuffer);
-
-        // Check if media is animated (GIF or video)
-        const isAnimated = mediaMessage.mimetype?.includes('gif') || 
-                          mediaMessage.mimetype?.includes('video') || 
-                          mediaMessage.seconds > 0;
-
-        // Convert to WebP using ffmpeg with optimized settings for animated/non-animated
-        const ffmpegCommand = isAnimated
-            ? `ffmpeg -i "${tempInput}" -vf "scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000" -c:v libwebp -preset default -loop 0 -vsync 0 -pix_fmt yuva420p -quality 75 -compression_level 6 "${tempOutput}"`
-            : `ffmpeg -i "${tempInput}" -vf "scale=512:512:force_original_aspect_ratio=decrease,format=rgba,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000" -c:v libwebp -preset default -loop 0 -vsync 0 -pix_fmt yuva420p -quality 75 -compression_level 6 "${tempOutput}"`;
-
-        await new Promise((resolve, reject) => {
-            exec(ffmpegCommand, (error) => {
-                if (error) {
-                    console.error('FFmpeg error:', error);
-                    reject(error);
-                } else resolve();
-            });
+        const downloadFn = deps.downloadMediaMessage || downloadMediaMessage;
+        const mediaBuffer = await downloadFn(targetMessage, 'buffer', {}, {
+            logger: undefined,
+            reuploadRequest: sock.updateMediaMessage
         });
 
-        // Read the WebP file
-        let webpBuffer = fs.readFileSync(tempOutput);
-
-        // If animated and output is too large, re-encode with harsher settings similar to stickercrop
-        if (isAnimated && webpBuffer.length > 1000 * 1024) {
-            try {
-                const tempOutput2 = path.join(tmpDir, `sticker_fallback_${Date.now()}.webp`);
-                // Detect large source to decide compression level
-                const fileSizeKB = mediaBuffer.length / 1024;
-                const isLargeFile = fileSizeKB > 5000; // 5MB
-                const fallbackCmd = isLargeFile
-                    ? `ffmpeg -y -i "${tempInput}" -t 2 -vf "scale=512:512:force_original_aspect_ratio=decrease,fps=8,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000" -c:v libwebp -preset default -loop 0 -vsync 0 -pix_fmt yuva420p -quality 30 -compression_level 6 -b:v 100k -max_muxing_queue_size 1024 "${tempOutput2}"`
-                    : `ffmpeg -y -i "${tempInput}" -t 3 -vf "scale=512:512:force_original_aspect_ratio=decrease,fps=12,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000" -c:v libwebp -preset default -loop 0 -vsync 0 -pix_fmt yuva420p -quality 45 -compression_level 6 -b:v 150k -max_muxing_queue_size 1024 "${tempOutput2}"`;
-                await new Promise((resolve, reject) => {
-                    exec(fallbackCmd, (error) => error ? reject(error) : resolve());
-                });
-                if (fs.existsSync(tempOutput2)) {
-                    webpBuffer = fs.readFileSync(tempOutput2);
-                    try { fs.unlinkSync(tempOutput2); } catch {}
-                }
-            } catch {}
-        }
-        // Read the WebP file
-        webpBuffer = fs.readFileSync(tempOutput);
-
-        // If animated and output is too large, re-encode with harsher settings similar to stickercrop
-        if (isAnimated && webpBuffer.length > 1000 * 1024) {
-            try {
-                const tempOutput2 = path.join(tmpDir, `sticker_fallback_${Date.now()}.webp`);
-                // Detect large source to decide compression level
-                const fileSizeKB = mediaBuffer.length / 1024;
-                const isLargeFile = fileSizeKB > 5000; // 5MB
-                const fallbackCmd = isLargeFile
-                    ? `ffmpeg -y -i "${tempInput}" -t 2 -vf "scale=512:512:force_original_aspect_ratio=decrease,fps=8,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000" -c:v libwebp -preset default -loop 0 -vsync 0 -pix_fmt yuva420p -quality 30 -compression_level 6 -b:v 100k -max_muxing_queue_size 1024 "${tempOutput2}"`
-                    : `ffmpeg -y -i "${tempInput}" -t 3 -vf "scale=512:512:force_original_aspect_ratio=decrease,fps=12,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000" -c:v libwebp -preset default -loop 0 -vsync 0 -pix_fmt yuva420p -quality 45 -compression_level 6 -b:v 150k -max_muxing_queue_size 1024 "${tempOutput2}"`;
-                await new Promise((resolve, reject) => {
-                    exec(fallbackCmd, (error) => error ? reject(error) : resolve());
-                });
-                if (fs.existsSync(tempOutput2)) {
-                    webpBuffer = fs.readFileSync(tempOutput2);
-                    try { fs.unlinkSync(tempOutput2); } catch {}
-                }
-            } catch {}
+        if (!mediaBuffer || !Buffer.isBuffer(mediaBuffer) || mediaBuffer.length === 0) {
+            await sock.sendMessage(chatId, {
+                text: 'Failed to download media. Please try again.'
+            }, { quoted: messageToQuote });
+            return;
         }
 
-        // Add metadata using webpmux
-        const img = new webp.Image();
-        await img.load(webpBuffer);
+        const classification = await classifyAndValidateMedia(mediaMessage, mediaBuffer);
 
-        // Create metadata
-        const json = {
-            'sticker-pack-id': crypto.randomBytes(32).toString('hex'),
-            'sticker-pack-name': settings.packname || 'BotGajeJir',
-            'emojis': ['🤖']
-        };
-
-        // Create exif buffer
-        const exifAttr = Buffer.from([0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00]);
-        const jsonBuffer = Buffer.from(JSON.stringify(json), 'utf8');
-        const exif = Buffer.concat([exifAttr, jsonBuffer]);
-        exif.writeUIntLE(jsonBuffer.length, 14, 4);
-
-        // Set the exif data
-        img.exif = exif;
-
-        // Get the final buffer with metadata
-        let finalBuffer = await img.save(null);
-
-        // Final safety: if still too large, make a tiny 320/256px pass
-        if (isAnimated && finalBuffer.length > 900 * 1024) {
-            try {
-                const tempOutput3 = path.join(tmpDir, `sticker_small_${Date.now()}.webp`);
-                const smallCmd = `ffmpeg -y -i "${tempInput}" -t 2 -vf "scale=320:320:force_original_aspect_ratio=decrease,fps=8,pad=320:320:(ow-iw)/2:(oh-ih)/2:color=#00000000" -c:v libwebp -preset default -loop 0 -vsync 0 -pix_fmt yuva420p -quality 30 -compression_level 6 -b:v 80k -max_muxing_queue_size 1024 "${tempOutput3}"`;
-                await new Promise((resolve, reject) => {
-                    exec(smallCmd, (error) => error ? reject(error) : resolve());
-                });
-                if (fs.existsSync(tempOutput3)) {
-                    const smallWebp = fs.readFileSync(tempOutput3);
-                    const img2 = new webp.Image();
-                    await img2.load(smallWebp);
-                    const json2 = {
-                        'sticker-pack-id': crypto.randomBytes(32).toString('hex'),
-                        'sticker-pack-name': settings.packname || 'BotGajeJir',
-                        'emojis': ['🤖']
-                    };
-                    const exifAttr2 = Buffer.from([0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00]);
-                    const jsonBuffer2 = Buffer.from(JSON.stringify(json2), 'utf8');
-                    const exif2 = Buffer.concat([exifAttr2, jsonBuffer2]);
-                    exif2.writeUIntLE(jsonBuffer2.length, 14, 4);
-                    img2.exif = exif2;
-                    finalBuffer = await img2.save(null);
-                    try { fs.unlinkSync(tempOutput3); } catch {}
-                }
-            } catch {}
+        if (classification.kind === 'unsupported') {
+            await sock.sendMessage(chatId, {
+                text: `❌ ${classification.reason || 'Format file tidak didukung untuk sticker.'}`
+            }, { quoted: messageToQuote });
+            return;
         }
 
-        // Send the sticker
-        await sock.sendMessage(chatId, { 
-            sticker: finalBuffer
-        },{ quoted: messageToQuote });
+        // Static image -> preserve existing instant static sticker conversion
+        if (classification.kind === 'image') {
+            const finalBuffer = await convertImageBufferToSticker(mediaBuffer, {
+                runBinary: deps.runBinary
+            });
+            await sock.sendMessage(chatId, {
+                sticker: finalBuffer
+            }, { quoted: messageToQuote });
+            return;
+        }
 
-        // Cleanup temp files
+        // Video / GIF -> persist to tmp disk and ask user via interactive buttons
+        const tmpDir = ensureTmpDir();
+        const safeExt = String(classification.ext || 'mp4').replace(/[^a-z0-9]/gi, '') || 'mp4';
+        const tempVideoPath = path.join(tmpDir, `pending_vid_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${safeExt}`);
+        fs.writeFileSync(tempVideoPath, mediaBuffer);
+
+        const ttlMs = deps.ttlMs || DEFAULT_SESSION_TTL_MS;
+        const senderIds = extractActorIds(message);
+
+        const session = createStickerSession({
+            chatId,
+            senderIds,
+            mediaPath: tempVideoPath,
+            mimetype: classification.mimetype,
+            seconds: mediaMessage.seconds || 0,
+            sourceMessage: messageToQuote,
+            ttlMs,
+            onExpire: async (expiredSession) => {
+                if (deps.notifyOnExpire === false) return;
+                await sock.sendMessage(expiredSession.chatId, {
+                    text: '⏱️ Waktu pemilihan konversi sticker habis karena tidak ada tombol yang dipilih. Silakan kirim ulang video dengan perintah .sticker jika masih diperlukan.'
+                }, { quoted: expiredSession.sourceMessage }).catch(() => {});
+            }
+        });
+
         try {
-            fs.unlinkSync(tempInput);
-            fs.unlinkSync(tempOutput);
-        } catch (err) {
-            console.error('Error cleaning up temp files:', err);
+            const promptMsgId = await sendStickerChoicePrompt(sock, chatId, messageToQuote, session.requestId, ttlMs);
+            if (promptMsgId) {
+                attachPromptMessageId(session.requestId, promptMsgId);
+            }
+        } catch (promptErr) {
+            // Rollback session if sending prompt fails
+            completeStickerSession(session.requestId);
+            throw promptErr;
         }
-
     } catch (error) {
         console.error('Error in sticker command:', error);
-        await sock.sendMessage(chatId, { 
-            text: 'Failed to create sticker! Try again later.',
-        });
+        await sock.sendMessage(chatId, {
+            text: formatStickerErrorMessage(error)
+        }, { quoted: messageToQuote }).catch(() => {});
     }
 }
+
+/**
+ * Handles interactive button callbacks or quoted numeric replies for pending video-to-sticker requests.
+ * @param {object} sock
+ * @param {string} chatId
+ * @param {object} message
+ * @param {object} [deps]
+ * @returns {Promise<boolean>} True if the message was handled as a sticker callback
+ */
+async function handleStickerCallback(sock, chatId, message, deps = {}) {
+    const parsed = parseStickerCallback(message);
+    if (!parsed) return false;
+
+    if (parsed.expiredReply) {
+        await sock.sendMessage(chatId, {
+            text: '⚠️ Sesi konversi video ini sudah kedaluwarsa atau telah selesai. Silakan kirim ulang video dengan perintah .sticker.'
+        }, { quoted: message });
+        return true;
+    }
+
+    const actorIds = extractActorIds(message);
+    const acquired = acquireStickerSession(parsed.requestId, chatId, actorIds);
+
+    if (!acquired.ok) {
+        const reasonMessages = {
+            unauthorized: '❌ Hanya pengirim video yang dapat memilih opsi sticker ini.',
+            already_processing: '⏳ Video ini sedang dalam proses konversi sticker. Mohon tunggu sebentar.',
+            already_used: 'ℹ️ Opsi untuk video ini sudah diproses sebelumnya. Kirim video baru dengan .sticker jika ingin membuat lagi.',
+            expired: '⚠️ Sesi konversi video ini sudah kedaluwarsa. Silakan kirim ulang video dengan perintah .sticker.',
+            not_found: '⚠️ Sesi konversi video ini sudah kedaluwarsa atau tidak ditemukan. Silakan kirim ulang video dengan perintah .sticker.',
+            wrong_chat: '⚠️ Sesi konversi video ini tidak berasal dari chat ini.'
+        };
+        await sock.sendMessage(chatId, {
+            text: reasonMessages[acquired.reason] || reasonMessages.expired
+        }, { quoted: message });
+        return true;
+    }
+
+    const { session } = acquired;
+    const choiceLabel = parsed.choice === 'with_audio' ? 'Audio Sticker' : 'Sticker Tanpa Audio';
+
+    // Processing indicator
+    await sock.sendMessage(chatId, {
+        react: { text: '⏳', key: message.key }
+    }).catch(() => {});
+    await sock.sendMessage(chatId, {
+        text: `⏳ Sedang memproses video menjadi *${choiceLabel}*...`
+    }, { quoted: message }).catch(() => {});
+
+    try {
+        if (parsed.choice === 'no_audio') {
+            const stickerBuffer = await convertVideoFileToAnimatedSticker(session.mediaPath, {
+                runBinary: deps.runBinary
+            });
+            try {
+                await sock.sendMessage(chatId, {
+                    sticker: stickerBuffer
+                }, { quoted: session.sourceMessage || message });
+            } catch (sendErr) {
+                console.error('Error sending animated sticker:', sendErr);
+                await sock.sendMessage(chatId, {
+                    text: '❌ Sticker berhasil dibuat tetapi gagal dikirim ke WhatsApp. Silakan coba lagi.'
+                }, { quoted: message }).catch(() => {});
+            }
+            return true;
+        }
+
+        // Audio Sticker branch (separated from regular animated sticker)
+        const audioResult = await processAudioStickerPipeline(session.mediaPath, {
+            runBinary: deps.runBinary,
+            waProto: deps.waProto,
+            maxDurationSec: deps.maxDurationSec
+        });
+
+        if (!audioResult.ok) {
+            await sock.sendMessage(chatId, {
+                text: audioResult.message
+            }, { quoted: session.sourceMessage || message });
+            return true;
+        }
+
+        // Forward-compatible native sending when WAProto / Baileys supports Audio Sticker
+        if (typeof deps.sendNativeAudioSticker === 'function') {
+            await deps.sendNativeAudioSticker(sock, chatId, audioResult, session.sourceMessage || message);
+        } else {
+            await sock.sendMessage(chatId, {
+                text: '⚠️ Adapter pengiriman Audio Sticker native belum tersedia untuk konfigurasi socket saat ini.'
+            }, { quoted: session.sourceMessage || message });
+        }
+        return true;
+    } catch (error) {
+        console.error('Error processing sticker callback:', error);
+        await sock.sendMessage(chatId, {
+            text: formatStickerErrorMessage(error)
+        }, { quoted: session.sourceMessage || message }).catch(() => {});
+        return true;
+    } finally {
+        completeStickerSession(session.requestId);
+    }
+}
+
+stickerCommand.handleStickerCallback = handleStickerCallback;
+stickerCommand.sendStickerChoicePrompt = sendStickerChoicePrompt;
 
 module.exports = stickerCommand;

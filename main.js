@@ -23,7 +23,7 @@ setInterval(() => {
         }
     });
     console.log('🧹 Temp folder auto-cleaned');
-}, 3 * 60 * 60 * 1000);
+}, 3 * 60 * 60 * 1000).unref();
 
 const settings = require('./settings');
 require('./config.js');
@@ -293,6 +293,14 @@ async function handleMessages(sock, messageUpdate, printLog) {
         const isYtmp4Resolution = userMessage === '480p' || userMessage === '720p';
         if (isYtmp4Resolution) {
             console.log(`🎬 YTMP4 resolution reply received: ${userMessage}`);
+        }
+
+        // Handle sticker choice button/reply callbacks (respecting public/private mode)
+        if (isPublic || isOwnerOrSudoCheck) {
+            const handledStickerCallback = await stickerCommand.handleStickerCallback(sock, chatId, message);
+            if (handledStickerCallback) {
+                return;
+            }
         }
 
         // Then check for command prefix
