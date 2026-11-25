@@ -64,95 +64,22 @@ async function sendStickerChoicePrompt(sock, chatId, messageToQuote, requestId, 
     const bodyText = [
         `🎬 *${PROMPT_MARKER}*`,
         '',
-        'Pilih jenis sticker animasi untuk video ini:',
-        '1️⃣ 🔇 *Sticker Tanpa Audio*',
-        '2️⃣ 🔊 *Sticker Dengan Audio*',
+        'Pilih jenis sticker untuk video ini:',
+        '1️⃣ 🔇 *Sticker Tanpa Audio* (Animasi biasa)',
+        '2️⃣ 🔊 *Sticker Dengan Audio* (Audio Sticker)',
         '',
-        `_Ketuk salah satu tombol di bawah, atau balas pesan ini dengan angka *1* atau *2*._`
+        `💡 _Balas pesan ini dengan angka *1* atau *2*._`,
+        `_(Atau gunakan langsung: \`.s 1\` atau \`.s 2\`)_`,
+        '',
+        `⏱️ Berlaku ${ttlMinutes} menit • Hanya pengirim video yang dapat memilih`
     ].join('\n');
-    const footerText = `Berlaku ${ttlMinutes} menit • Hanya pengirim video yang dapat memilih`;
 
-    if (typeof sock.relayMessage === 'function') {
-        try {
-            const interactiveMsg = generateWAMessageFromContent(
-                chatId,
-                {
-                    viewOnceMessage: {
-                        message: {
-                            messageContextInfo: {
-                                deviceListMetadata: {},
-                                deviceListMetadataVersion: 2
-                            },
-                            interactiveMessage: proto.Message.InteractiveMessage.create({
-                                header: proto.Message.InteractiveMessage.Header.create({
-                                    title: 'Konversi Video ke Sticker',
-                                    hasMediaAttachment: false
-                                }),
-                                body: proto.Message.InteractiveMessage.Body.create({
-                                    text: bodyText
-                                }),
-                                footer: proto.Message.InteractiveMessage.Footer.create({
-                                    text: footerText
-                                }),
-                                nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
-                                    buttons: [
-                                        {
-                                            name: 'quick_reply',
-                                            buttonParamsJson: JSON.stringify({
-                                                display_text: '🔇 Sticker Tanpa Audio',
-                                                id: `stk_opt:no_audio:${requestId}`
-                                            })
-                                        },
-                                        {
-                                            name: 'quick_reply',
-                                            buttonParamsJson: JSON.stringify({
-                                                display_text: '🔊 Sticker Dengan Audio',
-                                                id: `stk_opt:with_audio:${requestId}`
-                                            })
-                                        }
-                                    ]
-                                })
-                            })
-                        }
-                    }
-                },
-                {
-                    quoted: messageToQuote,
-                    userJid: sock.user?.id
-                }
-            );
-
-            await sock.relayMessage(chatId, interactiveMsg.message, {
-                messageId: interactiveMsg.key.id,
-                additionalNodes: [
-                    {
-                        tag: 'biz',
-                        attrs: {},
-                        content: [
-                            {
-                                tag: 'interactive',
-                                attrs: { type: 'native_flow', v: '1' },
-                                content: [
-                                    { tag: 'native_flow', attrs: { name: 'quick_reply' } }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            });
-
-            return interactiveMsg?.key?.id || null;
-        } catch (relayErr) {
-            console.warn('[STICKER] Interactive prompt relay failed, falling back to text prompt:', relayErr?.message || relayErr);
-        }
-    }
-
-    const fallbackMsg = await sock.sendMessage(
+    const promptMsg = await sock.sendMessage(
         chatId,
-        { text: `${bodyText}\n\n_${footerText}_` },
+        { text: bodyText },
         { quoted: messageToQuote }
     );
-    return fallbackMsg?.key?.id || null;
+    return promptMsg?.key?.id || null;
 }
 
 /**
@@ -165,9 +92,25 @@ async function sendStickerChoicePrompt(sock, chatId, messageToQuote, requestId, 
  * @param {object} [deps]
  */
 async function stickerCommand(sock, chatId, message, deps = {}) {
-    console.log('[STICKER CMD] received', { chatId, hasReply: !!message.message?.extendedTextMessage?.contextInfo?.quotedMessage, fromMe: message.key.fromMe });
     const messageToQuote = message;
     let targetMessage = message;
+
+    // Ambil teks perintah untuk mendeteksi argumen instan (misal .s 1, .s 2, .s audio)
+    const rawCmdText = (
+        message.message?.conversation ||
+        message.message?.extendedTextMessage?.text ||
+        message.message?.imageMessage?.caption ||
+        message.message?.videoMessage?.caption ||
+        ''
+    ).trim();
+
+    // Deteksi opsi instan dari perintah
+    let directChoice = null;
+    if (/\.(?:sticker|s)\s+(?:1|noaudio|tanpa)$/i.test(rawCmdText)) {
+        directChoice = 'no_audio';
+    } else if (/\.(?:sticker|s)\s+(?:2|audio|suara)$/i.test(rawCmdText)) {
+        directChoice = 'with_audio';
+    }
 
     // If the message is a reply, the target media is in the quoted message.
     if (message.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
@@ -180,14 +123,12 @@ async function stickerCommand(sock, chatId, message, deps = {}) {
             },
             message: quotedInfo.quotedMessage
         };
-        console.log('[STICKER CMD] reply detected, targetMessage keys:', Object.keys(targetMessage.message || {}));
     }
 
     const mediaMessage =
         targetMessage.message?.imageMessage ||
         targetMessage.message?.videoMessage ||
         targetMessage.message?.documentMessage;
-    console.log('[STICKER CMD] mediaMessage type:', mediaMessage ? Object.keys(mediaMessage)[0] : 'none', '| hasVideo:', !!targetMessage.message?.videoMessage);
 
     if (!mediaMessage) {
         await sock.sendMessage(chatId, {
@@ -211,7 +152,6 @@ async function stickerCommand(sock, chatId, message, deps = {}) {
             logger: undefined,
             reuploadRequest: sock.updateMediaMessage
         });
-        console.log('[STICKER CMD] downloaded buffer:', mediaBuffer ? mediaBuffer.length : 0);
 
         if (!mediaBuffer || !Buffer.isBuffer(mediaBuffer) || mediaBuffer.length === 0) {
             await sock.sendMessage(chatId, {
@@ -221,7 +161,6 @@ async function stickerCommand(sock, chatId, message, deps = {}) {
         }
 
         const classification = await classifyAndValidateMedia(mediaMessage, mediaBuffer);
-        console.log('[STICKER CMD] classification:', classification);
 
         if (classification.kind === 'unsupported') {
             await sock.sendMessage(chatId, {
@@ -241,16 +180,44 @@ async function stickerCommand(sock, chatId, message, deps = {}) {
             return;
         }
 
-        // Video / GIF -> persist to tmp disk and ask user via interactive buttons
+        // Video / GIF -> persist to tmp disk
         const tmpDir = ensureTmpDir();
         const safeExt = String(classification.ext || 'mp4').replace(/[^a-z0-9]/gi, '') || 'mp4';
         const tempVideoPath = path.join(tmpDir, `pending_vid_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${safeExt}`);
         fs.writeFileSync(tempVideoPath, mediaBuffer);
-        console.log('[STICKER CMD] temp video saved:', tempVideoPath);
+
+        // Jika user langsung menyertakan argumen (misal .s 1 atau .s 2), langsung proses tanpa menunggu prompt
+        if (directChoice) {
+            try {
+                if (directChoice === 'no_audio') {
+                    await sock.sendMessage(chatId, { text: '⏳ Sedang memproses video menjadi *Sticker Animasi (Tanpa Audio)*...' }, { quoted: messageToQuote }).catch(() => {});
+                    const stickerBuffer = await convertVideoFileToAnimatedSticker(tempVideoPath, { runBinary: deps.runBinary });
+                    await sock.sendMessage(chatId, { sticker: stickerBuffer }, { quoted: messageToQuote });
+                } else {
+                    await sock.sendMessage(chatId, { text: '⏳ Sedang memeriksa audio dan memproses *Audio Sticker*...' }, { quoted: messageToQuote }).catch(() => {});
+                    const audioResult = await processAudioStickerPipeline(tempVideoPath, {
+                        runBinary: deps.runBinary,
+                        waProto: deps.waProto,
+                        maxDurationSec: deps.maxDurationSec
+                    });
+                    if (!audioResult.ok) {
+                        await sock.sendMessage(chatId, { text: audioResult.message }, { quoted: messageToQuote });
+                    } else if (typeof deps.sendNativeAudioSticker === 'function') {
+                        await deps.sendNativeAudioSticker(sock, chatId, audioResult, messageToQuote);
+                    } else {
+                        await sock.sendMessage(chatId, {
+                            text: '⚠️ Adapter pengiriman Audio Sticker native belum tersedia untuk konfigurasi socket saat ini.'
+                        }, { quoted: messageToQuote });
+                    }
+                }
+            } finally {
+                try { if (fs.existsSync(tempVideoPath)) fs.unlinkSync(tempVideoPath); } catch {}
+            }
+            return;
+        }
 
         const ttlMs = deps.ttlMs || DEFAULT_SESSION_TTL_MS;
         const senderIds = extractActorIds(message);
-        console.log('[STICKER CMD] senderIds:', senderIds);
 
         const session = createStickerSession({
             chatId,
@@ -267,14 +234,11 @@ async function stickerCommand(sock, chatId, message, deps = {}) {
                 }, { quoted: expiredSession.sourceMessage }).catch(() => {});
             }
         });
-        console.log('[STICKER CMD] session created:', session.requestId);
 
         try {
             const promptMsgId = await sendStickerChoicePrompt(sock, chatId, messageToQuote, session.requestId, ttlMs);
-            console.log('[STICKER CMD] prompt sent, msgId:', promptMsgId);
             if (promptMsgId) {
                 attachPromptMessageId(session.requestId, promptMsgId);
-                console.log('[STICKER CMD] promptMessageId attached');
             }
         } catch (promptErr) {
             // Rollback session if sending prompt fails
@@ -299,9 +263,7 @@ async function stickerCommand(sock, chatId, message, deps = {}) {
  * @returns {Promise<boolean>} True if the message was handled as a sticker callback
  */
 async function handleStickerCallback(sock, chatId, message, deps = {}) {
-    console.log('[STICKER CALLBACK] received', { chatId, messageType: Object.keys(message.message || {})[0] });
     const parsed = parseStickerCallback(message);
-    console.log('[STICKER CALLBACK] parsed:', parsed);
     if (!parsed) return false;
 
     if (parsed.expiredReply) {

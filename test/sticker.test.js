@@ -99,10 +99,40 @@ function createInteractiveButtonReply({ chatId, senderId, buttonId, stanzaId = '
     };
 }
 
+function createTextReply({ chatId, senderId, text, stanzaId }) {
+    return {
+        key: {
+            remoteJid: chatId,
+            fromMe: false,
+            id: `TR_${Math.random().toString(36).slice(2, 8)}`,
+            participant: chatId.endsWith('@g.us') ? senderId : undefined
+        },
+        message: {
+            extendedTextMessage: {
+                text,
+                contextInfo: { stanzaId, quotedMessage: { conversation: '🎬 *Pilihan Konversi Video Sticker*' } }
+            }
+        }
+    };
+}
+
 function extractPromptButtonsFromRelay(relayedEntry) {
     const interactive = relayedEntry.message?.viewOnceMessage?.message?.interactiveMessage;
     const buttons = interactive?.nativeFlowMessage?.buttons || [];
     return buttons.map(b => JSON.parse(b.buttonParamsJson));
+}
+
+/**
+ * Prompt sekarang dikirim sebagai pesan teks biasa (tombol native flow di-drop WA MD).
+ * Test mengambil messageId dan membalas sebagai teks "1"/"2".
+ */
+function findPromptMessage(sock) {
+    return sock.sentMessages.find(m => typeof m.content?.text === 'string' && m.content.text.includes('Pilihan Konversi'));
+}
+
+/** ID pesan prompt (mock menyimpan id di key.id, bukan options.messageId). */
+function promptIdOf(prompt) {
+    return prompt?.key?.id || prompt?.options?.messageId;
 }
 
 function makeFakeBinaryRunner({ hasVideo = true, hasAudio = true, duration = 3.5, audioCodec = 'aac', failTranscode = false, delayMs = 0 } = {}) {
@@ -192,14 +222,13 @@ test('2. Video tanpa audio -> pilihan Tanpa Audio berhasil menghasilkan animated
         notifyOnExpire: false
     });
 
-    assert.equal(sock.relayedMessages.length, 1, 'Harus mengirim pesan interaktif 2 tombol');
-    const buttons = extractPromptButtonsFromRelay(sock.relayedMessages[0]);
-    assert.equal(buttons.length, 2);
-    assert.match(buttons[0].display_text, /Tanpa Audio/);
-    assert.match(buttons[1].display_text, /Dengan Audio/);
+    const prompt = findPromptMessage(sock);
+    assert.ok(prompt, 'Harus mengirim pesan teks pilihan 1/2');
+    assert.match(prompt.content.text, /Tanpa Audio/);
+    assert.match(prompt.content.text, /Dengan Audio/);
 
-    const promptId = sock.relayedMessages[0].options.messageId;
-    const cbMsg = createInteractiveButtonReply({ chatId, senderId: userA, buttonId: buttons[0].id, stanzaId: promptId });
+    const promptId = promptIdOf(prompt) || prompt.key?.id || 'PROMPT_1';
+    const cbMsg = createTextReply({ chatId, senderId: userA, text: '1', stanzaId: promptId });
 
     const handled = await stickerCommand.handleStickerCallback(sock, chatId, cbMsg, { runBinary: runner });
     assert.equal(handled, true);
@@ -224,12 +253,13 @@ test('3. Video tanpa audio -> pilihan Dengan Audio ditolak dengan informasi vide
         notifyOnExpire: false
     });
 
-    const buttons = extractPromptButtonsFromRelay(sock.relayedMessages[0]);
-    const cbMsg = createInteractiveButtonReply({
+    const prompt = findPromptMessage(sock);
+    assert.ok(prompt);
+    const cbMsg = createTextReply({
         chatId,
         senderId: userA,
-        buttonId: buttons[1].id,
-        stanzaId: sock.relayedMessages[0].options.messageId
+        text: '2',
+        stanzaId: promptIdOf(prompt) || 'PROMPT_1'
     });
 
     await stickerCommand.handleStickerCallback(sock, chatId, cbMsg, { runBinary: runner });
@@ -253,8 +283,9 @@ test('4. Video dengan audio -> pilihan Tanpa Audio menghasilkan animated sticker
         notifyOnExpire: false
     });
 
-    const buttons = extractPromptButtonsFromRelay(sock.relayedMessages[0]);
-    const cbMsg = createInteractiveButtonReply({ chatId, senderId: chatId, buttonId: buttons[0].id });
+    const prompt = findPromptMessage(sock);
+    assert.ok(prompt);
+    const cbMsg = createTextReply({ chatId, senderId: chatId, text: '1', stanzaId: promptIdOf(prompt) });
 
     await stickerCommand.handleStickerCallback(sock, chatId, cbMsg, { runBinary: runner });
 
@@ -278,8 +309,9 @@ test('5a. Verifikasi aktual Baileys WAProto -> tidak mendukung Audio Sticker nat
         notifyOnExpire: false
     });
 
-    const buttons = extractPromptButtonsFromRelay(sock.relayedMessages[0]);
-    const cbMsg = createInteractiveButtonReply({ chatId, senderId: chatId, buttonId: buttons[1].id });
+    const prompt = findPromptMessage(sock);
+    assert.ok(prompt);
+    const cbMsg = createTextReply({ chatId, senderId: chatId, text: '2', stanzaId: promptIdOf(prompt) });
 
     await stickerCommand.handleStickerCallback(sock, chatId, cbMsg, { runBinary: runner });
 
@@ -310,8 +342,9 @@ test('5b. Jalur forward-compatible Audio Sticker saat WAProto mendukung audioSti
         notifyOnExpire: false
     });
 
-    const buttons = extractPromptButtonsFromRelay(sock.relayedMessages[0]);
-    const cbMsg = createInteractiveButtonReply({ chatId, senderId: chatId, buttonId: buttons[1].id });
+    const prompt = findPromptMessage(sock);
+    assert.ok(prompt);
+    const cbMsg = createTextReply({ chatId, senderId: chatId, text: '2', stanzaId: promptIdOf(prompt) });
 
     let nativeDelivered = null;
     await stickerCommand.handleStickerCallback(sock, chatId, cbMsg, {
@@ -343,18 +376,20 @@ test('6. Tombol diklik berulang kali (konkuren & setelah selesai) -> tidak terja
         notifyOnExpire: false
     });
 
-    const buttons = extractPromptButtonsFromRelay(sock.relayedMessages[0]);
-    const cb1 = createInteractiveButtonReply({ chatId, senderId: chatId, buttonId: buttons[0].id });
-    const cb2 = createInteractiveButtonReply({ chatId, senderId: chatId, buttonId: buttons[0].id });
+    const prompt = findPromptMessage(sock);
+    assert.ok(prompt);
+    const promptId = promptIdOf(prompt);
+    const cb1 = createTextReply({ chatId, senderId: chatId, text: '1', stanzaId: promptId });
+    const cb2 = createTextReply({ chatId, senderId: chatId, text: '1', stanzaId: promptId });
 
-    // Click twice concurrently
+    // Kirim dua kali bersamaan
     await Promise.all([
         stickerCommand.handleStickerCallback(sock, chatId, cb1, { runBinary: runner }),
         stickerCommand.handleStickerCallback(sock, chatId, cb2, { runBinary: runner })
     ]);
 
-    // Click a third time after completion
-    const cb3 = createInteractiveButtonReply({ chatId, senderId: chatId, buttonId: buttons[0].id });
+    // Kirim lagi setelah selesai
+    const cb3 = createTextReply({ chatId, senderId: chatId, text: '1', stanzaId: promptId });
     await stickerCommand.handleStickerCallback(sock, chatId, cb3, { runBinary: runner });
 
     const stickerMsgs = sock.sentMessages.filter(m => m.content.sticker);
@@ -384,30 +419,25 @@ test('7. Dua pengguna mengirim video bersamaan & satu pengguna mengirim 2 video 
         stickerCommand(sock, groupId, msgA2, { downloadMediaMessage: async () => MINIMAL_MP4, runBinary: runner, notifyOnExpire: false })
     ]);
 
-    assert.equal(sock.relayedMessages.length, 3);
-    const btnsA1 = extractPromptButtonsFromRelay(sock.relayedMessages[0]);
-    const btnsB1 = extractPromptButtonsFromRelay(sock.relayedMessages[1]);
-    const btnsA2 = extractPromptButtonsFromRelay(sock.relayedMessages[2]);
+    const prompts = sock.sentMessages.filter(m => typeof m.content?.text === 'string' && m.content.text.includes('Pilihan Konversi'));
+    assert.equal(prompts.length, 3);
+    const [promptA1, promptB1, promptA2] = prompts;
 
-    // User B tries to click User A's button -> MUST be rejected without consuming User A's session
-    const unauthorizedClick = createInteractiveButtonReply({ chatId: groupId, senderId: userB, buttonId: btnsA1[0].id });
+    // User B mencoba memilih sesi User A -> HARUS ditolak tanpa menghabiskan sesi User A
+    const unauthorizedClick = createTextReply({ chatId: groupId, senderId: userB, text: '1', stanzaId: promptIdOf(promptA1) });
     await stickerCommand.handleStickerCallback(sock, groupId, unauthorizedClick, { runBinary: runner });
     assert.ok(sock.sentMessages.some(m => /Hanya pengirim video/i.test(m.content.text || '')));
 
-    // User A (even from normalized JID without :2) clicks Video 1 -> MUST quote msgA1
-    const clickA1 = createInteractiveButtonReply({ chatId: groupId, senderId: '628111000111@s.whatsapp.net', buttonId: btnsA1[0].id });
+    // User A (JID ternormalisasi tanpa :2) memilih video 1 -> harus mengutip msgA1
+    const clickA1 = createTextReply({ chatId: groupId, senderId: '628111000111@s.whatsapp.net', text: '1', stanzaId: promptIdOf(promptA1) });
     await stickerCommand.handleStickerCallback(sock, groupId, clickA1, { runBinary: runner });
 
-    // User A clicks Video 3 via quoted reply "1" -> MUST quote msgA2
-    const promptIdA2 = sock.relayedMessages[2].options.messageId;
-    const replyA2 = {
-        key: { remoteJid: groupId, fromMe: false, id: 'RPL_A2', participant: '628111000111@s.whatsapp.net' },
-        message: { extendedTextMessage: { text: '1', contextInfo: { stanzaId: promptIdA2 } } }
-    };
+    // User A memilih video 3 -> harus mengutip msgA2
+    const replyA2 = createTextReply({ chatId: groupId, senderId: '628111000111@s.whatsapp.net', text: '1', stanzaId: promptIdOf(promptA2) });
     await stickerCommand.handleStickerCallback(sock, groupId, replyA2, { runBinary: runner });
 
-    // User B clicks User B's button -> MUST quote msgB1
-    const clickB1 = createInteractiveButtonReply({ chatId: groupId, senderId: userB, buttonId: btnsB1[0].id });
+    // User B memilih video 2 -> harus mengutip msgB1
+    const clickB1 = createTextReply({ chatId: groupId, senderId: userB, text: '1', stanzaId: promptIdOf(promptB1) });
     await stickerCommand.handleStickerCallback(sock, groupId, clickB1, { runBinary: runner });
 
     const stickers = sock.sentMessages.filter(m => m.content.sticker);
@@ -463,11 +493,12 @@ test('8. Error handling: file besar, format invalid, durasi berlebih, transcode 
         ttlMs: 30,
         notifyOnExpire: true
     });
-    const btnsExp = extractPromptButtonsFromRelay(sockExp.relayedMessages[0]);
+    const promptExp = findPromptMessage(sockExp);
+    assert.ok(promptExp, 'Harus mengirim prompt teks pilihan');
     await new Promise(r => setTimeout(r, 80));
 
     assert.ok(sockExp.sentMessages.some(m => /habis karena tidak ada tombol yang dipilih/i.test(m.content.text || '')));
-    const lateClick = createInteractiveButtonReply({ chatId, senderId: chatId, buttonId: btnsExp[0].id });
+    const lateClick = createTextReply({ chatId, senderId: chatId, text: '1', stanzaId: promptIdOf(promptExp) });
     await stickerCommand.handleStickerCallback(sockExp, chatId, lateClick);
     assert.ok(sockExp.sentMessages.some(m => /kedaluwarsa/i.test(m.content.text || '')));
 
@@ -485,8 +516,9 @@ test('8. Error handling: file besar, format invalid, durasi berlebih, transcode 
         runBinary: okRunner,
         notifyOnExpire: false
     });
-    const btnsFail = extractPromptButtonsFromRelay(failingSock.relayedMessages[0]);
-    const cbFail = createInteractiveButtonReply({ chatId, senderId: chatId, buttonId: btnsFail[0].id });
+    const promptFail = findPromptMessage(failingSock);
+    assert.ok(promptFail);
+    const cbFail = createTextReply({ chatId, senderId: chatId, text: '1', stanzaId: promptIdOf(promptFail) });
     await stickerCommand.handleStickerCallback(failingSock, chatId, cbFail, { runBinary: okRunner });
     assert.ok(failingSock.sentMessages.some(m => /gagal dikirim/i.test(m.content.text || '')));
 });

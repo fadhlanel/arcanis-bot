@@ -297,9 +297,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
         // Handle sticker choice button/reply callbacks (respecting public/private mode)
         if (isPublic || isOwnerOrSudoCheck) {
-            console.log('[MAIN] checking sticker callback', { chatId, isPublic, isOwnerOrSudoCheck });
             const handledStickerCallback = await stickerCommand.handleStickerCallback(sock, chatId, message);
-            console.log('[MAIN] sticker callback handled:', handledStickerCallback);
             if (handledStickerCallback) {
                 return;
             }
@@ -438,7 +436,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await helpCommand(sock, chatId, message);
                 commandExecuted = true;
                 break;
-            case userMessage === '.sticker' || userMessage === '.s':
+            case userMessage === '.sticker' || userMessage.startsWith('.sticker ') || userMessage === '.s' || userMessage.startsWith('.s '):
                 await stickerCommand(sock, chatId, message);
                 commandExecuted = true;
                 break;
