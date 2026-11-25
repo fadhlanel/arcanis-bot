@@ -165,6 +165,7 @@ async function sendStickerChoicePrompt(sock, chatId, messageToQuote, requestId, 
  * @param {object} [deps]
  */
 async function stickerCommand(sock, chatId, message, deps = {}) {
+    console.log('[STICKER CMD] received', { chatId, hasReply: !!message.message?.extendedTextMessage?.contextInfo?.quotedMessage, fromMe: message.key.fromMe });
     const messageToQuote = message;
     let targetMessage = message;
 
@@ -179,12 +180,14 @@ async function stickerCommand(sock, chatId, message, deps = {}) {
             },
             message: quotedInfo.quotedMessage
         };
+        console.log('[STICKER CMD] reply detected, targetMessage keys:', Object.keys(targetMessage.message || {}));
     }
 
     const mediaMessage =
         targetMessage.message?.imageMessage ||
         targetMessage.message?.videoMessage ||
         targetMessage.message?.documentMessage;
+    console.log('[STICKER CMD] mediaMessage type:', mediaMessage ? Object.keys(mediaMessage)[0] : 'none', '| hasVideo:', !!targetMessage.message?.videoMessage);
 
     if (!mediaMessage) {
         await sock.sendMessage(chatId, {
@@ -208,6 +211,7 @@ async function stickerCommand(sock, chatId, message, deps = {}) {
             logger: undefined,
             reuploadRequest: sock.updateMediaMessage
         });
+        console.log('[STICKER CMD] downloaded buffer:', mediaBuffer ? mediaBuffer.length : 0);
 
         if (!mediaBuffer || !Buffer.isBuffer(mediaBuffer) || mediaBuffer.length === 0) {
             await sock.sendMessage(chatId, {
@@ -217,6 +221,7 @@ async function stickerCommand(sock, chatId, message, deps = {}) {
         }
 
         const classification = await classifyAndValidateMedia(mediaMessage, mediaBuffer);
+        console.log('[STICKER CMD] classification:', classification);
 
         if (classification.kind === 'unsupported') {
             await sock.sendMessage(chatId, {
@@ -241,9 +246,11 @@ async function stickerCommand(sock, chatId, message, deps = {}) {
         const safeExt = String(classification.ext || 'mp4').replace(/[^a-z0-9]/gi, '') || 'mp4';
         const tempVideoPath = path.join(tmpDir, `pending_vid_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${safeExt}`);
         fs.writeFileSync(tempVideoPath, mediaBuffer);
+        console.log('[STICKER CMD] temp video saved:', tempVideoPath);
 
         const ttlMs = deps.ttlMs || DEFAULT_SESSION_TTL_MS;
         const senderIds = extractActorIds(message);
+        console.log('[STICKER CMD] senderIds:', senderIds);
 
         const session = createStickerSession({
             chatId,
@@ -260,19 +267,23 @@ async function stickerCommand(sock, chatId, message, deps = {}) {
                 }, { quoted: expiredSession.sourceMessage }).catch(() => {});
             }
         });
+        console.log('[STICKER CMD] session created:', session.requestId);
 
         try {
             const promptMsgId = await sendStickerChoicePrompt(sock, chatId, messageToQuote, session.requestId, ttlMs);
+            console.log('[STICKER CMD] prompt sent, msgId:', promptMsgId);
             if (promptMsgId) {
                 attachPromptMessageId(session.requestId, promptMsgId);
+                console.log('[STICKER CMD] promptMessageId attached');
             }
         } catch (promptErr) {
             // Rollback session if sending prompt fails
+            console.error('[STICKER CMD] prompt error:', promptErr);
             completeStickerSession(session.requestId);
             throw promptErr;
         }
     } catch (error) {
-        console.error('Error in sticker command:', error);
+        console.error('[STICKER CMD] Error:', error);
         await sock.sendMessage(chatId, {
             text: formatStickerErrorMessage(error)
         }, { quoted: messageToQuote }).catch(() => {});
@@ -288,7 +299,9 @@ async function stickerCommand(sock, chatId, message, deps = {}) {
  * @returns {Promise<boolean>} True if the message was handled as a sticker callback
  */
 async function handleStickerCallback(sock, chatId, message, deps = {}) {
+    console.log('[STICKER CALLBACK] received', { chatId, messageType: Object.keys(message.message || {})[0] });
     const parsed = parseStickerCallback(message);
+    console.log('[STICKER CALLBACK] parsed:', parsed);
     if (!parsed) return false;
 
     if (parsed.expiredReply) {
