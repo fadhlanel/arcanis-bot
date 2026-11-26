@@ -15,15 +15,44 @@ let failed = 0;
 // Auto-heal missing @coflyn/scrapr from local file dependency
 const scraprPath = path.resolve(__dirname, '..', 'node_modules', '@coflyn', 'scrapr');
 const scraprSourcePath = path.resolve(__dirname, '..', 'scrapr-main');
-if (!fs.existsSync(scraprPath) && fs.existsSync(scraprSourcePath)) {
-    console.log('[patch] @coflyn/scrapr missing, reinstalling from ./scrapr-main...');
-    try {
-        execSync('npm install ./scrapr-main --no-save', { cwd: path.resolve(__dirname, '..'), stdio: 'inherit' });
-        console.log('[patch] @coflyn/scrapr reinstalled successfully.');
-    } catch (err) {
-        console.error('[patch] Failed to reinstall @coflyn/scrapr:', err.message);
+const scraprSourcePackageJson = path.join(scraprSourcePath, 'package.json');
+
+console.log('[patch] Checking @coflyn/scrapr dependency...');
+console.log(`[patch]   scrapr target: ${scraprPath}`);
+console.log(`[patch]   scrapr source: ${scraprSourcePath}`);
+console.log(`[patch]   target exists: ${fs.existsSync(scraprPath)}`);
+console.log(`[patch]   source exists: ${fs.existsSync(scraprSourcePath)}`);
+console.log(`[patch]   source package.json exists: ${fs.existsSync(scraprSourcePackageJson)}`);
+
+if (!fs.existsSync(scraprPath)) {
+    if (!fs.existsSync(scraprSourcePath)) {
+        console.error('[patch] CRITICAL: scrapr-main/ folder not found. Git pull may have failed or folder was not committed.');
+        console.error('[patch] Cannot auto-heal @coflyn/scrapr. Bot will crash on startup.');
         failed++;
+    } else if (!fs.existsSync(scraprSourcePackageJson)) {
+        console.error('[patch] CRITICAL: scrapr-main/package.json not found. Folder structure incomplete.');
+        failed++;
+    } else {
+        console.log('[patch] @coflyn/scrapr missing but scrapr-main/ exists. Reinstalling from local source...');
+        try {
+            execSync('npm install ./scrapr-main --no-save', { 
+                cwd: path.resolve(__dirname, '..'), 
+                stdio: 'inherit',
+                env: { ...process.env, npm_config_loglevel: 'error' }
+            });
+            if (fs.existsSync(scraprPath)) {
+                console.log('[patch] ✓ @coflyn/scrapr reinstalled successfully.');
+            } else {
+                console.error('[patch] ✗ npm install completed but @coflyn/scrapr still missing. Check npm logs above.');
+                failed++;
+            }
+        } catch (err) {
+            console.error('[patch] ✗ Failed to reinstall @coflyn/scrapr:', err.message);
+            failed++;
+        }
     }
+} else {
+    console.log('[patch] ✓ @coflyn/scrapr already installed.');
 }
 
 function patchFile(filePath, oldStr, newStr, description) {
