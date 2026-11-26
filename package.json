@@ -23,7 +23,7 @@
   "license": "ISC",
   "dependencies": {
     "@adiwajshing/keyed-db": "^0.2.4",
-    "@coflyn/scrapr": "file:./scrapr-main",
+    "@coflyn/scrapr": "^1.4.0",
     "@distube/ytdl-core": "^5.2.1",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@hapi/boom": "^10.0.1",
