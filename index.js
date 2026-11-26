@@ -8,6 +8,25 @@ const path = require('path');
 const WORKER_FILE = path.join(__dirname, 'bot.js');
 const RESTART_EXIT_CODE = 42;
 
+// Dependency inti wajib ada sebelum worker dijalankan. Kalau `npm install` gagal
+// (mis. ERESOLVE di panel), node_modules setengah jadi — berhenti dengan pesan jelas
+// daripada menabrak MODULE_NOT_FOUND berulang.
+const REQUIRED_MODULES = ['dotenv', '@whiskeysockets/baileys', '@xbibzlibrary/whatsbibz'];
+const missingModules = REQUIRED_MODULES.filter((name) => {
+    try {
+        require.resolve(name);
+        return false;
+    } catch {
+        return true;
+    }
+});
+
+if (missingModules.length > 0) {
+    console.error(`[Supervisor] Dependency belum lengkap: ${missingModules.join(', ')}`);
+    console.error('[Supervisor] Jalankan `npm install` sampai sukses, lalu start ulang. Worker tidak dijalankan.');
+    process.exit(1);
+}
+
 let worker = null;
 let shuttingDown = false;
 let restartCount = 0;
