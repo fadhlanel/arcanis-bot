@@ -1,4 +1,4 @@
-const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { downloadMediaMessage, jidNormalizedUser } = require('@whiskeysockets/baileys');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -17,6 +17,9 @@ const {
     sendVideoAsSoundSticker,
     formatAudioStickerError
 } = require('../lib/soundSticker');
+const {
+    getAudioStickerSocket
+} = require('../lib/audioStickerSocket');
 const {
     DEFAULT_SESSION_TTL_MS,
     PROMPT_MARKER,
@@ -75,7 +78,8 @@ function formatStickerErrorMessage(error) {
 }
 
 /**
- * Validates a cached video and sends it as a native WhatsApp sound sticker.
+ * Validates a cached video and sends it as a native WhatsApp sound sticker
+ * using a dedicated whatsbibz socket.
  * @param {object} sock
  * @param {string} chatId
  * @param {object} sourceMessage Original command/reply message containing the video
@@ -85,8 +89,9 @@ function formatStickerErrorMessage(error) {
  */
 async function sendAudioSticker(sock, chatId, sourceMessage, videoPath, deps = {}) {
     let probe;
+    const probeFn = deps.probeVideoStream || probeVideoStream;
     try {
-        probe = await probeVideoStream(videoPath, { runBinary: deps.runBinary });
+        probe = await probeFn(videoPath, { runBinary: deps.runBinary });
     } catch (err) {
         return { ok: false, code: err.code || 'INVALID_VIDEO', message: formatStickerErrorMessage(err) };
     }
@@ -113,13 +118,63 @@ async function sendAudioSticker(sock, chatId, sourceMessage, videoPath, deps = {
         };
     }
 
+    // 1. Obtain dedicated whatsbibz socket for audio sticker
+    let audioSock;
+    try {
+        const getSocket = deps.getAudioStickerSocket || getAudioStickerSocket;
+        audioSock = await getSocket();
+    } catch (err) {
+        if (err.code === 'AUDIO_SOCKET_QR_PENDING') {
+            return {
+                ok: false,
+                code: 'AUDIO_SOCKET_QR_PENDING',
+                message: '❌ Socket Audio Sticker belum siap. Silakan scan QR yang muncul di log bot, lalu coba lagi.'
+            };
+        }
+        return { ok: false, code: err.code || 'AUDIO_SOCKET_ERROR', message: formatStickerErrorMessage(err) };
+    }
+
+    // 2. Prepare own JIDs for normalization (PN/LID + device suffixes)
+    function digitsOf(jid) {
+        return String(jid || '').split('@')[0].split(':')[0].replace(/\D/g, '');
+    }
+    const ownJids = new Set();
+    const candidates = [
+        audioSock?.user?.id,
+        audioSock?.user?.lid,
+        audioSock?.authState?.creds?.me?.id,
+        audioSock?.authState?.creds?.me?.lid,
+    ];
+    for (const c of candidates) {
+        if (!c) continue;
+        const norm = jidNormalizedUser(c);
+        if (norm) ownJids.add(norm);
+    }
+
+    // 3. Build normalized download message (mirrors whatsbibz approach)
+    const normRemote = jidNormalizedUser(sourceMessage.key.remoteJid) || sourceMessage.key.remoteJid;
+    const downloadMsg = {
+        ...sourceMessage,
+        key: { ...sourceMessage.key, remoteJid: normRemote },
+    };
+    const ctx = downloadMsg.message?.extendedTextMessage?.contextInfo;
+    if (ctx?.remoteJid) {
+        const ctxNorm = jidNormalizedUser(ctx.remoteJid);
+        if (ownJids.has(ctxNorm)) {
+            ctx.remoteJid = normRemote;
+        }
+    }
+
+    // 4. Download video using library helper with audio socket's mediaHost
     const audio = deps.soundSticker || { downloadVideoForSoundSticker, sendVideoAsSoundSticker };
-    const mediaHost = typeof sock.getMediaHost === 'function' ? sock.getMediaHost() : undefined;
-    const video = await audio.downloadVideoForSoundSticker(sourceMessage, {
+    const mediaHost = typeof audioSock.getMediaHost === 'function' ? audioSock.getMediaHost() : undefined;
+    const video = await audio.downloadVideoForSoundSticker(downloadMsg, {
         mediaHost,
         timeoutMs: deps.downloadTimeoutMs
     });
-    await audio.sendVideoAsSoundSticker(sock, chatId, video, {
+
+    // 5. Send audio sticker via dedicated socket
+    await audio.sendVideoAsSoundSticker(audioSock, chatId, video, {
         quoted: sourceMessage,
         startSeconds: 0,
         timeoutMs: deps.convertTimeoutMs
@@ -417,5 +472,6 @@ async function handleStickerCallback(sock, chatId, message, deps = {}) {
 
 stickerCommand.handleStickerCallback = handleStickerCallback;
 stickerCommand.sendStickerChoicePrompt = sendStickerChoicePrompt;
+stickerCommand.sendAudioSticker = sendAudioSticker;
 
 module.exports = stickerCommand;

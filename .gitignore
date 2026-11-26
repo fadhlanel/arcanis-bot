@@ -9,6 +9,7 @@ baileys_store.json
 
 # Session and credentials
 session/
+session-audio-sticker/
 auth_info/
 .env
 .env.*
