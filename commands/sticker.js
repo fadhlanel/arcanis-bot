@@ -110,13 +110,8 @@ async function sendAudioSticker(sock, chatId, sourceMessage, videoPath, deps = {
             message: '❌ Video ini tidak memiliki audio stream, jadi tidak bisa dibuat menjadi Audio Sticker. Pilih *Sticker Tanpa Audio*.'
         };
     }
-    if (probe.duration > MAX_AUDIO_STICKER_DURATION_SEC) {
-        return {
-            ok: false,
-            code: 'DURATION_EXCEEDED',
-            message: `❌ Durasi video (${probe.duration.toFixed(1)} detik) melebihi batas maksimal Audio Sticker (${MAX_AUDIO_STICKER_DURATION_SEC} detik). Pilih *Sticker Tanpa Audio* atau potong videonya terlebih dahulu.`
-        };
-    }
+    // Durasi >5 detik tidak ditolak: library whatsbibz memotong otomatis 5 detik pertama
+    // (SOUND_STICKER_MAX_SECONDS = 5), sama seperti implementasi referensi.
 
     // 1. Obtain dedicated whatsbibz socket for audio sticker
     let audioSock;
@@ -200,7 +195,7 @@ async function sendStickerChoicePrompt(sock, chatId, messageToQuote, requestId, 
         '',
         'Pilih jenis sticker untuk video ini:',
         '1️⃣ 🔇 *Sticker Tanpa Audio* (Animasi biasa)',
-        '2️⃣ 🔊 *Sticker Dengan Audio* (Audio Sticker, maks 5 detik)',
+        `2️⃣ 🔊 *Sticker Dengan Audio* (Audio Sticker, ${MAX_AUDIO_STICKER_DURATION_SEC} detik pertama, dipotong otomatis)`,
         '',
         `💡 _Balas pesan ini dengan angka *1* atau *2*._`,
         `_(Atau gunakan langsung: \`.s 1\` atau \`.s 2\`)_`,

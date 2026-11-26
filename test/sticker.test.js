@@ -267,7 +267,7 @@ test('5. Video <=5 detik -> Audio Sticker valid diproses oleh library', async ()
     assert.equal(audioSock.relayedMessages.length, 1);
 });
 
-test('6. Video >5 detik -> Audio Sticker ditolak sebelum download/library', async () => {
+test('6. Video >5 detik -> tetap diproses library dan dipotong otomatis', async () => {
     const { sock, videoMsg, promptId, runner } = await setupVideoChoice({ hasAudio: true, duration: 6 });
     const sound = createMockSoundSticker();
     const audioSock = createMockAudioSocket();
@@ -279,9 +279,10 @@ test('6. Video >5 detik -> Audio Sticker ditolak sebelum download/library', asyn
         getAudioStickerSocket: async () => audioSock
     });
 
-    assert.equal(sound.calls.download.length, 0);
-    assert.equal(sound.calls.send.length, 0);
-    assert.ok(sock.sentMessages.some(m => /melebihi batas maksimal Audio Sticker/i.test(m.content.text || '')));
+    assert.equal(sound.calls.download.length, 1);
+    assert.equal(sound.calls.send.length, 1);
+    assert.equal(sound.calls.send[0].options.startSeconds, 0);
+    assert.equal(audioSock.relayedMessages.length, 1);
 });
 
 test('7. Pilihan diklik berulang kali -> tidak terjadi pemrosesan ganda', async () => {

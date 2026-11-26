@@ -20,6 +20,7 @@ const { handleMessages, handleGroupParticipantUpdate, handleStatus } = require('
 const PhoneNumber = require('awesome-phonenumber')
 const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./lib/exif')
 const { smsg, isUrl, generateMessageTag, getBuffer, getSizeMedia, fetch, await, sleep, reSize } = require('./lib/myfunc')
+const { getAudioStickerSocket } = require('./lib/audioStickerSocket')
 const {
     default: makeWASocket,
     useMultiFileAuthState,
@@ -474,6 +475,12 @@ async function startXeonBotInc() {
     XeonBotInc.ev.on('messages.reaction', async (status) => {
         await handleStatus(XeonBotInc, status);
     });
+
+    // Audio Sticker memakai socket whatsbibz terpisah. Start lebih awal agar QR tampil di log
+    // tanpa menunggu ada perintah .s 2 (sesi tersimpan di session-audio-sticker/).
+    getAudioStickerSocket().catch(err => {
+        console.log(chalk.yellow(`[Audio Sticker] ${err.message}`))
+    })
 
     return XeonBotInc
     } catch (error) {
