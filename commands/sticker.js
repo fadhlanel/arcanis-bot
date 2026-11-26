@@ -5,12 +5,18 @@ const path = require('path');
 
 const {
     MAX_VIDEO_INPUT_BYTES,
+    MAX_AUDIO_STICKER_DURATION_SEC,
     ensureTmpDir,
     classifyAndValidateMedia,
     convertImageBufferToSticker,
     convertVideoFileToAnimatedSticker,
-    processAudioStickerPipeline
+    probeVideoStream
 } = require('../lib/stickerMedia');
+const {
+    downloadVideoForSoundSticker,
+    sendVideoAsSoundSticker,
+    formatAudioStickerError
+} = require('../lib/soundSticker');
 const {
     DEFAULT_SESSION_TTL_MS,
     PROMPT_MARKER,
@@ -42,10 +48,83 @@ function formatStickerErrorMessage(error) {
         case 'DURATION_EXCEEDED':
             return `❌ ${error.message || 'Durasi atau ukuran melebihi batas sticker WhatsApp.'}`;
         case 'FFMPEG_MISSING':
-            return '❌ Layanan konversi media (FFmpeg) belum tersedia di server.';
+        case 'FFMPEG_NOT_FOUND':
+        case 'FFMPEG_TIMEOUT':
+        case 'FFMPEG_FAILED':
+        case 'NO_AUDIO':
+        case 'SILENT_AUDIO':
+        case 'INVALID_AUDIO':
+        case 'VIDEO_TOO_LARGE':
+        case 'STICKER_TOO_LARGE':
+        case 'VIDEO_NOT_FOUND':
+        case 'VIEW_ONCE_REJECTED':
+        case 'UNSUPPORTED_VIDEO':
+        case 'VIDEO_METADATA_MISSING':
+        case 'MEDIA_INTEGRITY_FAILED':
+        case 'VIDEO_DOWNLOAD_FAILED':
+        case 'VIDEO_DOWNLOAD_TIMEOUT':
+        case 'UPLOAD_FAILED':
+        case 'BAD_JID':
+        case 'BAD_SOCKET':
+        case 'BAD_OPTIONS':
+        case 'NO_VIDEO':
+            return formatAudioStickerError(error);
         default:
             return '❌ Gagal membuat sticker! Pastikan file valid dan coba lagi nanti.';
     }
+}
+
+/**
+ * Validates a cached video and sends it as a native WhatsApp sound sticker.
+ * @param {object} sock
+ * @param {string} chatId
+ * @param {object} sourceMessage Original command/reply message containing the video
+ * @param {string} videoPath Cached temporary video file
+ * @param {object} [deps]
+ * @returns {Promise<{ ok: boolean, code?: string, message?: string }>}
+ */
+async function sendAudioSticker(sock, chatId, sourceMessage, videoPath, deps = {}) {
+    let probe;
+    try {
+        probe = await probeVideoStream(videoPath, { runBinary: deps.runBinary });
+    } catch (err) {
+        return { ok: false, code: err.code || 'INVALID_VIDEO', message: formatStickerErrorMessage(err) };
+    }
+
+    if (!probe.valid || !probe.hasVideo) {
+        return {
+            ok: false,
+            code: 'INVALID_VIDEO',
+            message: '❌ Video tidak valid atau rusak sehingga tidak dapat diproses.'
+        };
+    }
+    if (!probe.hasAudio) {
+        return {
+            ok: false,
+            code: 'NO_AUDIO',
+            message: '❌ Video ini tidak memiliki audio stream, jadi tidak bisa dibuat menjadi Audio Sticker. Pilih *Sticker Tanpa Audio*.'
+        };
+    }
+    if (probe.duration > MAX_AUDIO_STICKER_DURATION_SEC) {
+        return {
+            ok: false,
+            code: 'DURATION_EXCEEDED',
+            message: `❌ Durasi video (${probe.duration.toFixed(1)} detik) melebihi batas maksimal Audio Sticker (${MAX_AUDIO_STICKER_DURATION_SEC} detik). Pilih *Sticker Tanpa Audio* atau potong videonya terlebih dahulu.`
+        };
+    }
+
+    const audio = deps.soundSticker || { downloadVideoForSoundSticker, sendVideoAsSoundSticker };
+    const mediaHost = typeof sock.getMediaHost === 'function' ? sock.getMediaHost() : undefined;
+    const video = await audio.downloadVideoForSoundSticker(sourceMessage, {
+        mediaHost,
+        timeoutMs: deps.downloadTimeoutMs
+    });
+    await audio.sendVideoAsSoundSticker(sock, chatId, video, {
+        quoted: sourceMessage,
+        startSeconds: 0,
+        timeoutMs: deps.convertTimeoutMs
+    });
+    return { ok: true };
 }
 
 /**
@@ -66,7 +145,7 @@ async function sendStickerChoicePrompt(sock, chatId, messageToQuote, requestId, 
         '',
         'Pilih jenis sticker untuk video ini:',
         '1️⃣ 🔇 *Sticker Tanpa Audio* (Animasi biasa)',
-        '2️⃣ 🔊 *Sticker Dengan Audio* (Audio Sticker)',
+        '2️⃣ 🔊 *Sticker Dengan Audio* (Audio Sticker, maks 5 detik)',
         '',
         `💡 _Balas pesan ini dengan angka *1* atau *2*._`,
         `_(Atau gunakan langsung: \`.s 1\` atau \`.s 2\`)_`,
@@ -195,19 +274,9 @@ async function stickerCommand(sock, chatId, message, deps = {}) {
                     await sock.sendMessage(chatId, { sticker: stickerBuffer }, { quoted: messageToQuote });
                 } else {
                     await sock.sendMessage(chatId, { text: '⏳ Sedang memeriksa audio dan memproses *Audio Sticker*...' }, { quoted: messageToQuote }).catch(() => {});
-                    const audioResult = await processAudioStickerPipeline(tempVideoPath, {
-                        runBinary: deps.runBinary,
-                        waProto: deps.waProto,
-                        maxDurationSec: deps.maxDurationSec
-                    });
+                    const audioResult = await sendAudioSticker(sock, chatId, messageToQuote, tempVideoPath, deps);
                     if (!audioResult.ok) {
                         await sock.sendMessage(chatId, { text: audioResult.message }, { quoted: messageToQuote });
-                    } else if (typeof deps.sendNativeAudioSticker === 'function') {
-                        await deps.sendNativeAudioSticker(sock, chatId, audioResult, messageToQuote);
-                    } else {
-                        await sock.sendMessage(chatId, {
-                            text: '⚠️ Adapter pengiriman Audio Sticker native belum tersedia untuk konfigurasi socket saat ini.'
-                        }, { quoted: messageToQuote });
                     }
                 }
             } finally {
@@ -320,26 +389,18 @@ async function handleStickerCallback(sock, chatId, message, deps = {}) {
             return true;
         }
 
-        // Audio Sticker branch (separated from regular animated sticker)
-        const audioResult = await processAudioStickerPipeline(session.mediaPath, {
-            runBinary: deps.runBinary,
-            waProto: deps.waProto,
-            maxDurationSec: deps.maxDurationSec
-        });
+        // Native Audio Sticker via @xbibzlibrary/whatsbibz
+        const audioResult = await sendAudioSticker(
+            sock,
+            chatId,
+            session.sourceMessage || message,
+            session.mediaPath,
+            deps
+        );
 
         if (!audioResult.ok) {
             await sock.sendMessage(chatId, {
                 text: audioResult.message
-            }, { quoted: session.sourceMessage || message });
-            return true;
-        }
-
-        // Forward-compatible native sending when WAProto / Baileys supports Audio Sticker
-        if (typeof deps.sendNativeAudioSticker === 'function') {
-            await deps.sendNativeAudioSticker(sock, chatId, audioResult, session.sourceMessage || message);
-        } else {
-            await sock.sendMessage(chatId, {
-                text: '⚠️ Adapter pengiriman Audio Sticker native belum tersedia untuk konfigurasi socket saat ini.'
             }, { quoted: session.sourceMessage || message });
         }
         return true;

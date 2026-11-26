@@ -61,7 +61,7 @@ async function helpCommand(sock, chatId, message) {
 • .clear — Bersihkan chat
 
 🖼️ STIKER & GAMBAR
-• .sticker / .s — Buat stiker (balas gambar/video; video mendukung opsi audio)
+• .sticker / .s — Buat stiker (balas gambar/video; video: .s 1 tanpa audio, .s 2 audio maks 5 detik)
 • .simage — Ubah stiker menjadi gambar
 • .take / .steal <nama paket> — Ganti metadata stiker
 • .crop — Potong gambar jadi stiker
