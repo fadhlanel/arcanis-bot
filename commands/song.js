@@ -191,9 +191,28 @@ async function songCommand(sock, chatId, message) {
             }
         }
 
+        // Fallback scrapr setelah semua URL ikyyxd gagal diunduh
+        if (!audioBuffer || audioBuffer.length === 0) {
+            for (let idx = 0; idx < candidates.length; idx++) {
+                const currentVideo = candidates[idx];
+                const ytUrl = currentVideo.videoId ? `https://youtu.be/${currentVideo.videoId}` : currentVideo.url;
+                try {
+                    console.log(`[Song] Trying scrapr fallback [${idx + 1}/${candidates.length}]: ${ytUrl}`);
+                    const result = await ikyyDL.scraprYouTubeFallback(ytUrl);
+                    audioBuffer = await ikyyDL.downloadBuffer(result.downloadUrl, { timeout: 120000, maxSize: 100 * 1024 * 1024 });
+                    audioData = { title: result.title || currentVideo.title };
+                    chosenVideo = currentVideo;
+                    console.log(`[Song] scrapr fallback success on candidate [${idx + 1}]`);
+                    break;
+                } catch (scraprErr) {
+                    console.log(`[Song] scrapr fallback failed on candidate [${idx + 1}]: ${scraprErr.message}`);
+                }
+            }
+        }
+
         // Validate buffer
         if (!audioBuffer || audioBuffer.length === 0) {
-            throw new Error('Gagal download audio. Video mungkin tidak tersedia atau diblokir.');
+            throw new Error('Gagal download audio. Semua downloader gagal.');
         }
 
         // Kirim thumbnail & info
