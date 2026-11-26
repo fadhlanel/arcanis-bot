@@ -261,7 +261,6 @@ test('5. Video <=5 detik -> Audio Sticker valid diproses oleh library', async ()
         getAudioStickerSocket: async () => audioSock
     });
 
-    assert.equal(sound.calls.download.length, 1);
     assert.equal(sound.calls.send.length, 1);
     assert.ok(sound.calls.send[0].video.length > 0);
     assert.equal(audioSock.relayedMessages.length, 1);
@@ -279,7 +278,6 @@ test('6. Video >5 detik -> tetap diproses library dan dipotong otomatis', async 
         getAudioStickerSocket: async () => audioSock
     });
 
-    assert.equal(sound.calls.download.length, 1);
     assert.equal(sound.calls.send.length, 1);
     assert.equal(sound.calls.send[0].options.startSeconds, 0);
     assert.equal(audioSock.relayedMessages.length, 1);
@@ -398,7 +396,7 @@ test('9. Error handling: file besar, format invalid, timeout, download gagal, da
     assert.ok(failingSock.sentMessages.some(m => /gagal dikirim/i.test(m.content.text || '')));
 });
 
-test('10. downloadVideoForSoundSticker dipanggil dengan pesan sumber video dan opsi mediaHost', async () => {
+test('10. sendVideoAsSoundSticker menerima video buffer dan opsi startSeconds: 0', async () => {
     const { sock, videoMsg, promptId, runner } = await setupVideoChoice({ hasAudio: true, duration: 4 });
     const sound = createMockSoundSticker();
     const audioSock = createMockAudioSocket();
@@ -410,9 +408,9 @@ test('10. downloadVideoForSoundSticker dipanggil dengan pesan sumber video dan o
         getAudioStickerSocket: async () => audioSock
     });
 
-    assert.equal(sound.calls.download.length, 1);
-    assert.equal(sound.calls.download[0].message.key.id, videoMsg.key.id);
-    assert.equal(sound.calls.download[0].options.mediaHost, 'media.example.whatsapp.net');
+    assert.equal(sound.calls.send.length, 1);
+    assert.equal(sound.calls.send[0].options.startSeconds, 0);
+    assert.ok(Buffer.isBuffer(sound.calls.send[0].video));
 });
 
 test('11. sendVideoAsSoundSticker dipanggil dengan video buffer dan quoted pesan asli', async () => {
@@ -538,7 +536,7 @@ test('17. Audio socket QR pending -> sendAudioSticker mengembalikan error inform
     const qrError = Object.assign(new Error('QR belum discan'), { code: 'AUDIO_SOCKET_QR_PENDING' });
     const mockGetSocket = async () => { throw qrError; };
 
-    const result = await stickerCommand.sendAudioSticker(sock, chatId, msg, 'dummy_path', {
+    const result = await stickerCommand.sendAudioSticker(sock, chatId, msg, MINIMAL_MP4, {
         runBinary: async () => ({ valid: true, hasVideo: true, hasAudio: true, duration: 3 }),
         soundSticker: sound,
         getAudioStickerSocket: mockGetSocket,
@@ -548,8 +546,6 @@ test('17. Audio socket QR pending -> sendAudioSticker mengembalikan error inform
     assert.equal(result.ok, false);
     assert.equal(result.code, 'AUDIO_SOCKET_QR_PENDING');
     assert.match(result.message, /QR.*log bot/);
-    // library functions should not be called
-    assert.equal(sound.calls.download.length, 0);
     assert.equal(sound.calls.send.length, 0);
 });
 
@@ -561,7 +557,7 @@ test('18. Audio socket disconnected -> sendAudioSticker mengembalikan error', as
     const discError = Object.assign(new Error('Koneksi terputus'), { code: 'AUDIO_SOCKET_DISCONNECTED', statusCode: 428 });
     const mockGetSocket = async () => { throw discError; };
 
-    const result = await stickerCommand.sendAudioSticker(sock, chatId, msg, 'dummy_path', {
+    const result = await stickerCommand.sendAudioSticker(sock, chatId, msg, MINIMAL_MP4, {
         runBinary: async () => ({ valid: true, hasVideo: true, hasAudio: true, duration: 3 }),
         soundSticker: sound,
         getAudioStickerSocket: mockGetSocket,
@@ -572,94 +568,46 @@ test('18. Audio socket disconnected -> sendAudioSticker mengembalikan error', as
     assert.equal(result.code, 'AUDIO_SOCKET_DISCONNECTED');
 });
 
-test('19. Normalisasi remoteJid & contextInfo.remoteJid di downloadMsg', async () => {
+test('19. sendVideoAsSoundSticker dipanggil langsung dengan video buffer tanpa download ganda', async () => {
     const sock = createMockSock();
     const chatId = '628111111111@s.whatsapp.net';
-    // sourceMessage dengan remoteJid berbeda (PN vs LID) dan contextInfo.remoteJid berupa JID bot sendiri
     const sourceMessage = {
-        key: { remoteJid: '628111111111@s.whatsapp.net', id: 'MSG_3', fromMe: false },
-        message: {
-            extendedTextMessage: {
-                contextInfo: {
-                    stanzaId: 'STANZA_1',
-                    remoteJid: '628000000000@s.whatsapp.net', // JID bot (PN)
-                    participant: '628111111111@s.whatsapp.net',
-                    quotedMessage: { videoMessage: { directPath: '/path', mediaKey: Buffer.alloc(32), fileSha256: Buffer.alloc(32), fileLength: 1024 } }
-                }
-            }
-        }
+        key: { remoteJid: chatId, id: 'MSG_3', fromMe: false },
+        message: { conversation: '.s 2' }
     };
     const sound = createMockSoundSticker();
     const audioSock = createMockAudioSocket();
     const mockGetSocket = async () => audioSock;
-    let capturedDownloadMsg = null;
 
-    const mockSound = {
-        calls: { download: [], send: [] },
-        async downloadVideoForSoundSticker(message, options) {
-            capturedDownloadMsg = message;
-            return MINIMAL_MP4;
-        },
-        async sendVideoAsSoundSticker(s, jid, video, opts) {
-            return { key: { id: 'SS_1' } };
-        }
-    };
-
-    await stickerCommand.sendAudioSticker(sock, chatId, sourceMessage, 'dummy_path', {
+    const result = await stickerCommand.sendAudioSticker(sock, chatId, sourceMessage, MINIMAL_MP4, {
         runBinary: async () => ({ valid: true, hasVideo: true, hasAudio: true, duration: 3 }),
-        soundSticker: mockSound,
+        soundSticker: sound,
         getAudioStickerSocket: mockGetSocket,
         probeVideoStream: async () => ({ valid: true, hasVideo: true, hasAudio: true, duration: 3 })
     });
 
-    // remoteJid harus ternormalisasi (tanpa device suffix)
-    assert.equal(capturedDownloadMsg.key.remoteJid, '628111111111@s.whatsapp.net');
-    // contextInfo.remoteJid harus diganti ke normRemote karena cocok ownJids
-    assert.equal(capturedDownloadMsg.message?.extendedTextMessage?.contextInfo?.remoteJid, '628111111111@s.whatsapp.net');
-    // original sourceMessage tidak dimutasi
-    assert.equal(sourceMessage.key.remoteJid, '628111111111@s.whatsapp.net');
+    assert.equal(result.ok, true);
+    assert.equal(sound.calls.send.length, 1);
+    assert.equal(sound.calls.send[0].jid, chatId);
+    assert.ok(Buffer.isBuffer(sound.calls.send[0].video));
 });
 
-test('20. Konteks multi-user: ownJids LID juga dicocokkan', async () => {
+test('20. Video buffer rusak -> sendAudioSticker menolak sebelum socket', async () => {
     const sock = createMockSock();
     const chatId = '628111111111@s.whatsapp.net';
-    const sourceMessage = {
-        key: { remoteJid: chatId, id: 'MSG_4', fromMe: false },
-        message: {
-            extendedTextMessage: {
-                contextInfo: {
-                    stanzaId: 'STANZA_2',
-                    remoteJid: '123456789@lid', // JID bot (LID)
-                    participant: chatId,
-                    quotedMessage: { videoMessage: { directPath: '/path', mediaKey: Buffer.alloc(32), fileSha256: Buffer.alloc(32), fileLength: 1024 } }
-                }
-            }
-        }
-    };
-    const sound = createMockSoundSticker();
-    const audioSock = createMockAudioSocket();
-    const mockGetSocket = async () => audioSock;
-    let capturedDownloadMsg = null;
+    const sourceMessage = { key: { remoteJid: chatId, id: 'MSG_4' } };
+    let socketCalled = false;
+    const mockGetSocket = async () => { socketCalled = true; return createMockAudioSocket(); };
 
-    const mockSound = {
-        calls: { download: [], send: [] },
-        async downloadVideoForSoundSticker(message, options) {
-            capturedDownloadMsg = message;
-            return MINIMAL_MP4;
-        },
-        async sendVideoAsSoundSticker(s, jid, video, opts) {
-            return { key: { id: 'SS_2' } };
-        }
-    };
-
-    await stickerCommand.sendAudioSticker(sock, chatId, sourceMessage, 'dummy_path', {
-        runBinary: async () => ({ valid: true, hasVideo: true, hasAudio: true, duration: 3 }),
-        soundSticker: mockSound,
-        getAudioStickerSocket: mockGetSocket,
-        probeVideoStream: async () => ({ valid: true, hasVideo: true, hasAudio: true, duration: 3 })
+    const result = await stickerCommand.sendAudioSticker(sock, chatId, sourceMessage, Buffer.from('bukan video'), {
+        runBinary: async () => ({ valid: false, hasVideo: false, hasAudio: false, duration: 0 }),
+        probeVideoStream: async () => ({ valid: false, hasVideo: false, hasAudio: false, duration: 0 }),
+        getAudioStickerSocket: mockGetSocket
     });
 
-    assert.equal(capturedDownloadMsg.message?.extendedTextMessage?.contextInfo?.remoteJid, chatId);
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'INVALID_VIDEO');
+    assert.equal(socketCalled, false);
 });
 
 test.after(() => {

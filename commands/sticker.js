@@ -78,23 +78,43 @@ function formatStickerErrorMessage(error) {
 }
 
 /**
- * Validates a cached video and sends it as a native WhatsApp sound sticker
+ * Validates a video buffer and sends it as a native WhatsApp sound sticker
  * using a dedicated whatsbibz socket.
  * @param {object} sock
  * @param {string} chatId
- * @param {object} sourceMessage Original command/reply message containing the video
- * @param {string} videoPath Cached temporary video file
+ * @param {object} sourceMessage
+ * @param {Buffer|string} videoBufferOrPath
  * @param {object} [deps]
  * @returns {Promise<{ ok: boolean, code?: string, message?: string }>}
  */
-async function sendAudioSticker(sock, chatId, sourceMessage, videoPath, deps = {}) {
-    let probe;
+async function sendAudioSticker(sock, chatId, sourceMessage, videoBufferOrPath, deps = {}) {
+    // Resolve video buffer from path or use directly
+    let videoBuffer;
+    if (Buffer.isBuffer(videoBufferOrPath)) {
+        videoBuffer = videoBufferOrPath;
+    } else if (typeof videoBufferOrPath === 'string') {
+        try {
+            videoBuffer = fs.readFileSync(videoBufferOrPath);
+        } catch (err) {
+            return { ok: false, code: 'INVALID_VIDEO', message: '❌ File video tidak ditemukan atau gagal dibaca.' };
+        }
+    } else {
+        return { ok: false, code: 'INVALID_VIDEO', message: '❌ Input video tidak valid.' };
+    }
+
+    // Probe video from buffer (write temp file for ffprobe)
     const probeFn = deps.probeVideoStream || probeVideoStream;
+    let probe;
+    const tmpDir = ensureTmpDir();
+    const probeTempPath = path.join(tmpDir, `probe_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.mp4`);
+    fs.writeFileSync(probeTempPath, videoBuffer);
     try {
-        probe = await probeFn(videoPath, { runBinary: deps.runBinary });
+        probe = await probeFn(probeTempPath, { runBinary: deps.runBinary });
     } catch (err) {
+        try { fs.unlinkSync(probeTempPath); } catch {}
         return { ok: false, code: err.code || 'INVALID_VIDEO', message: formatStickerErrorMessage(err) };
     }
+    try { fs.unlinkSync(probeTempPath); } catch {}
 
     if (!probe.valid || !probe.hasVideo) {
         return {
@@ -129,47 +149,9 @@ async function sendAudioSticker(sock, chatId, sourceMessage, videoPath, deps = {
         return { ok: false, code: err.code || 'AUDIO_SOCKET_ERROR', message: formatStickerErrorMessage(err) };
     }
 
-    // 2. Prepare own JIDs for normalization (PN/LID + device suffixes)
-    function digitsOf(jid) {
-        return String(jid || '').split('@')[0].split(':')[0].replace(/\D/g, '');
-    }
-    const ownJids = new Set();
-    const candidates = [
-        audioSock?.user?.id,
-        audioSock?.user?.lid,
-        audioSock?.authState?.creds?.me?.id,
-        audioSock?.authState?.creds?.me?.lid,
-    ];
-    for (const c of candidates) {
-        if (!c) continue;
-        const norm = jidNormalizedUser(c);
-        if (norm) ownJids.add(norm);
-    }
-
-    // 3. Build normalized download message (mirrors whatsbibz approach)
-    const normRemote = jidNormalizedUser(sourceMessage.key.remoteJid) || sourceMessage.key.remoteJid;
-    const downloadMsg = {
-        ...sourceMessage,
-        key: { ...sourceMessage.key, remoteJid: normRemote },
-    };
-    const ctx = downloadMsg.message?.extendedTextMessage?.contextInfo;
-    if (ctx?.remoteJid) {
-        const ctxNorm = jidNormalizedUser(ctx.remoteJid);
-        if (ownJids.has(ctxNorm)) {
-            ctx.remoteJid = normRemote;
-        }
-    }
-
-    // 4. Download video using library helper with audio socket's mediaHost
-    const audio = deps.soundSticker || { downloadVideoForSoundSticker, sendVideoAsSoundSticker };
-    const mediaHost = typeof audioSock.getMediaHost === 'function' ? audioSock.getMediaHost() : undefined;
-    const video = await audio.downloadVideoForSoundSticker(downloadMsg, {
-        mediaHost,
-        timeoutMs: deps.downloadTimeoutMs
-    });
-
-    // 5. Send audio sticker via dedicated socket
-    await audio.sendVideoAsSoundSticker(audioSock, chatId, video, {
+    // 2. Send audio sticker via dedicated socket using our buffer (bypass library download)
+    const audio = deps.soundSticker || { sendVideoAsSoundSticker };
+    await audio.sendVideoAsSoundSticker(audioSock, chatId, videoBuffer, {
         quoted: sourceMessage,
         startSeconds: 0,
         timeoutMs: deps.convertTimeoutMs
@@ -324,7 +306,7 @@ async function stickerCommand(sock, chatId, message, deps = {}) {
                     await sock.sendMessage(chatId, { sticker: stickerBuffer }, { quoted: messageToQuote });
                 } else {
                     await sock.sendMessage(chatId, { text: '⏳ Sedang memeriksa audio dan memproses *Audio Sticker*...' }, { quoted: messageToQuote }).catch(() => {});
-                    const audioResult = await sendAudioSticker(sock, chatId, messageToQuote, tempVideoPath, deps);
+                    const audioResult = await sendAudioSticker(sock, chatId, messageToQuote, mediaBuffer, deps);
                     if (!audioResult.ok) {
                         await sock.sendMessage(chatId, { text: audioResult.message }, { quoted: messageToQuote });
                     }
