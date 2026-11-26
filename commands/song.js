@@ -2,6 +2,7 @@ const axios = require('axios');
 const yts = require('yt-search');
 const { toAudio } = require('../lib/converter');
 const { scrapeUrl, downloadBuffer, log } = require('../lib/scraprDownloader');
+const ytdlCore = require('../lib/ytdlDirect');
 
 async function songCommand(sock, chatId, message) {
     try {
@@ -150,7 +151,34 @@ async function songCommand(sock, chatId, message) {
         let sourcePlatform = 'YouTube (Scraper)';
         const ELITEPROTECH_YTMP3 = 'https://eliteprotech-apis.zone.id/download/ytmp3';
 
+        // === TRY YTDL-CORE FIRST (most reliable — direct googlevideo.com stream) ===
+        for (let idx = 0; idx < candidates.length; idx++) {
+            const currentVideo = candidates[idx];
+            const ytdlUrl = currentVideo.videoId
+                ? `https://youtu.be/${currentVideo.videoId}`
+                : currentVideo.url;
+            console.log(`[Song] Trying ytdl-core on candidate [${idx + 1}/${candidates.length}]: "${currentVideo.title}" (${ytdlUrl})`);
+            try {
+                const { buffer: ytdlBuf, title: ytdlTitle, duration: ytdlDur } = await ytdlCore.downloadAudioBuffer(ytdlUrl);
+                if (ytdlBuf && ytdlBuf.length > 0) {
+                    let buf = ytdlBuf;
+                    try { buf = await toAudio(buf, 'mp3'); } catch (convErr) { console.log(`[Song] toAudio (ytdl) failed: ${convErr.message}`); }
+                    audioBuffer = buf;
+                    audioData = { title: ytdlTitle };
+                    chosenVideo = currentVideo;
+                    sourcePlatform = `YouTube Direct (Versi ${idx + 1})`;
+                    candidateAttemptLogs.push(`✅ Versi [${idx + 1}] "${ytdlTitle.slice(0, 30)}...": Berhasil (ytdl-core)`);
+                    console.log(`[Song] ytdl-core success with candidate [${idx + 1}]! (${audioBuffer.length} bytes)`);
+                    break;
+                }
+            } catch (ytdlErr) {
+                candidateAttemptLogs.push(`❌ Versi [${idx + 1}] "${currentVideo.title.slice(0, 30)}...": ytdl-core gagal (${ytdlErr.message.slice(0, 60)})`);
+                console.log(`[Song] ytdl-core failed on candidate [${idx + 1}]: ${ytdlErr.message}`);
+            }
+        }
+
         // === TRY ELITEPROTECH ACROSS CANDIDATES ===
+        if (!audioBuffer || audioBuffer.length === 0) {
         for (let idx = 0; idx < candidates.length; idx++) {
             const currentVideo = candidates[idx];
             console.log(`[Song] Trying EliteProTech on candidate [${idx + 1}/${candidates.length}]: "${currentVideo.title}" (${currentVideo.url})`);
@@ -204,6 +232,7 @@ async function songCommand(sock, chatId, message) {
                 }
             }
         }
+        } // end if (!audioBuffer) EliteProTech block
 
         // === FALLBACK: Scrapr-main across candidates ===
         if (!audioBuffer || audioBuffer.length === 0) {
@@ -257,7 +286,7 @@ async function songCommand(sock, chatId, message) {
         await sock.sendMessage(chatId, {
             audio: audioBuffer,
             mimetype: 'audio/mpeg',
-            fileName: `${(audioData.title || video.title || 'song').replace(/[^\w\s-]/g, '')}.mp3`,
+            fileName: `${(audioData?.title || chosenVideo?.title || 'song').replace(/[^\w\s-]/g, '')}.mp3`,
             ptt: false
         }, { quoted: message });
         await sock.sendMessage(chatId, { text: `✅ Selesai! Sumber: ${sourcePlatform}` }, { quoted: message });
