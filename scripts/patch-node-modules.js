@@ -8,8 +8,23 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 let failed = 0;
+
+// Auto-heal missing @coflyn/scrapr from local file dependency
+const scraprPath = path.resolve(__dirname, '..', 'node_modules', '@coflyn', 'scrapr');
+const scraprSourcePath = path.resolve(__dirname, '..', 'scrapr-main');
+if (!fs.existsSync(scraprPath) && fs.existsSync(scraprSourcePath)) {
+    console.log('[patch] @coflyn/scrapr missing, reinstalling from ./scrapr-main...');
+    try {
+        execSync('npm install ./scrapr-main --no-save', { cwd: path.resolve(__dirname, '..'), stdio: 'inherit' });
+        console.log('[patch] @coflyn/scrapr reinstalled successfully.');
+    } catch (err) {
+        console.error('[patch] Failed to reinstall @coflyn/scrapr:', err.message);
+        failed++;
+    }
+}
 
 function patchFile(filePath, oldStr, newStr, description) {
     try {
