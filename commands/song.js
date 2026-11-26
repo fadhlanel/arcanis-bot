@@ -1,8 +1,7 @@
 const axios = require('axios');
 const yts = require('yt-search');
 const { toAudio } = require('../lib/converter');
-const { scrapeUrl, downloadBuffer, log } = require('../lib/scraprDownloader');
-const ytdlCore = require('../lib/ytdlDirect');
+const ikyyDL = require('../lib/ikyyDownloader');
 
 async function songCommand(sock, chatId, message) {
     try {
@@ -20,24 +19,46 @@ async function songCommand(sock, chatId, message) {
         const isSoundCloud = text.includes('soundcloud.com');
         const isYouTube    = text.includes('youtube.com') || text.includes('youtu.be');
 
-        if (isSpotify || isSoundCloud) {
-            const platform = isSpotify ? 'spotify' : 'soundcloud';
-            await sock.sendMessage(chatId, { text: `⏳ Mengambil audio dari ${platform}...` }, { quoted: message });
+        // === SPOTIFY HANDLER ===
+        if (isSpotify) {
+            await sock.sendMessage(chatId, { text: `⏳ Mengambil audio dari Spotify...` }, { quoted: message });
             try {
-                const result = await scrapeUrl(platform, text);
-                const audio = result.downloads.find(d => /audio|mp3|m4a/i.test(String(d.type || '') + d.url)) || result.downloads[0];
-                if (!audio?.url) throw new Error(`${platform}: no audio URL`);
-                let { buffer } = await downloadBuffer(audio.url, { platform, timeout: 120000 });
-                try { buffer = await toAudio(buffer, 'mp3'); } catch (convErr) { console.log(`[Song] toAudio failed: ${convErr.message}`); }
+                const result = await ikyyDL.spotify(text);
+                console.log(`[Song] Spotify download URL obtained: ${result.downloadUrl}`);
+                
+                const buffer = await ikyyDL.downloadBuffer(result.downloadUrl, { timeout: 120000 });
                 await sock.sendMessage(chatId, {
                     audio: buffer,
                     mimetype: 'audio/mpeg',
-                    fileName: `${(result.title || text).replace(/[^\w\s-]/g, '')}.mp3`,
+                    fileName: `${result.artist} - ${result.title}.mp3`.replace(/[^\w\s-]/g, ''),
                     ptt: false
                 }, { quoted: message });
-                await sock.sendMessage(chatId, { text: `✅ Selesai! Sumber: ${platform.toUpperCase()}` }, { quoted: message });
+                await sock.sendMessage(chatId, { text: `✅ Selesai!\n🎵 ${result.title}\n🎤 ${result.artist}\n💿 Sumber: SPOTIFY` }, { quoted: message });
             } catch (e) {
-                await sock.sendMessage(chatId, { text: `❌ Gagal download dari ${platform}: ${e.message}` }, { quoted: message });
+                console.error(`[Song] Spotify error:`, e.message);
+                await sock.sendMessage(chatId, { text: `❌ Gagal download dari Spotify: ${e.message}` }, { quoted: message });
+            }
+            return;
+        }
+
+        // === SOUNDCLOUD HANDLER (fallback ke all-in-one) ===
+        if (isSoundCloud) {
+            await sock.sendMessage(chatId, { text: `⏳ Mengambil audio dari SoundCloud...` }, { quoted: message });
+            try {
+                const result = await ikyyDL.allInOne(text);
+                console.log(`[Song] SoundCloud download URL obtained: ${result.downloadUrl}`);
+                
+                const buffer = await ikyyDL.downloadBuffer(result.downloadUrl, { timeout: 120000 });
+                await sock.sendMessage(chatId, {
+                    audio: buffer,
+                    mimetype: 'audio/mpeg',
+                    fileName: `${result.title || 'soundcloud'}.mp3`.replace(/[^\w\s-]/g, ''),
+                    ptt: false
+                }, { quoted: message });
+                await sock.sendMessage(chatId, { text: `✅ Selesai! Sumber: SOUNDCLOUD` }, { quoted: message });
+            } catch (e) {
+                console.error(`[Song] SoundCloud error:`, e.message);
+                await sock.sendMessage(chatId, { text: `❌ Gagal download dari SoundCloud: ${e.message}` }, { quoted: message });
             }
             return;
         }
@@ -142,135 +163,43 @@ async function songCommand(sock, chatId, message) {
             return;
         }
 
-        await sock.sendMessage(chatId, { text: `🔎 Menemukan ${candidates.length} versi, sedang mencocokkan audio terbaik...` }, { quoted: message });
+        await sock.sendMessage(chatId, { text: `🔎 Mencari audio terbaik...` }, { quoted: message });
 
-        let audioData = null;
         let audioBuffer = null;
+        let audioData = null;
         let chosenVideo = null;
-        let candidateAttemptLogs = [];
-        let sourcePlatform = 'YouTube (Scraper)';
-        const ELITEPROTECH_YTMP3 = 'https://eliteprotech-apis.zone.id/download/ytmp3';
 
-        // === TRY YTDL-CORE FIRST (most reliable — direct googlevideo.com stream) ===
+        // === TRY IKYY API YTMP3 FIRST (RAM-efficient, returns direct URL) ===
         for (let idx = 0; idx < candidates.length; idx++) {
             const currentVideo = candidates[idx];
-            const ytdlUrl = currentVideo.videoId
-                ? `https://youtu.be/${currentVideo.videoId}`
-                : currentVideo.url;
-            console.log(`[Song] Trying ytdl-core on candidate [${idx + 1}/${candidates.length}]: "${currentVideo.title}" (${ytdlUrl})`);
-            try {
-                const { buffer: ytdlBuf, title: ytdlTitle, duration: ytdlDur } = await ytdlCore.downloadAudioBuffer(ytdlUrl);
-                if (ytdlBuf && ytdlBuf.length > 0) {
-                    let buf = ytdlBuf;
-                    try { buf = await toAudio(buf, 'mp3'); } catch (convErr) { console.log(`[Song] toAudio (ytdl) failed: ${convErr.message}`); }
-                    audioBuffer = buf;
-                    audioData = { title: ytdlTitle };
-                    chosenVideo = currentVideo;
-                    sourcePlatform = `YouTube Direct (Versi ${idx + 1})`;
-                    candidateAttemptLogs.push(`✅ Versi [${idx + 1}] "${ytdlTitle.slice(0, 30)}...": Berhasil (ytdl-core)`);
-                    console.log(`[Song] ytdl-core success with candidate [${idx + 1}]! (${audioBuffer.length} bytes)`);
-                    break;
-                }
-            } catch (ytdlErr) {
-                candidateAttemptLogs.push(`❌ Versi [${idx + 1}] "${currentVideo.title.slice(0, 30)}...": ytdl-core gagal (${ytdlErr.message.slice(0, 60)})`);
-                console.log(`[Song] ytdl-core failed on candidate [${idx + 1}]: ${ytdlErr.message}`);
-            }
-        }
-
-        // === TRY ELITEPROTECH ACROSS CANDIDATES ===
-        if (!audioBuffer || audioBuffer.length === 0) {
-        for (let idx = 0; idx < candidates.length; idx++) {
-            const currentVideo = candidates[idx];
-            console.log(`[Song] Trying EliteProTech on candidate [${idx + 1}/${candidates.length}]: "${currentVideo.title}" (${currentVideo.url})`);
+            const ytUrl = currentVideo.videoId ? `https://youtu.be/${currentVideo.videoId}` : currentVideo.url;
             
-            // Format link standar yang bersih (youtu.be tanpa embel-embel query tracking ?si=)
-            const cleanShareUrl = currentVideo.videoId ? `https://youtu.be/${currentVideo.videoId}` : currentVideo.url;
-
-            let candidateDlUrl = null;
-            let candidateTitle = currentVideo.title;
-
+            console.log(`[Song] Trying ikyyxd ytmp3 API on candidate [${idx + 1}/${candidates.length}]: "${currentVideo.title}"`);
+            
             try {
-                const { data } = await axios.get(`${ELITEPROTECH_YTMP3}?url=${encodeURIComponent(cleanShareUrl)}`, {
-                    timeout: 25000,
-                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36' }
-                });
-                if (data?.status && data?.download?.downloadUrl) {
-                    candidateDlUrl = data.download.downloadUrl;
-                    candidateTitle = data.download.title || candidateTitle;
-                    console.log(`[Song] EliteProTech URL found on candidate [${idx + 1}] using ${cleanShareUrl}`);
-                } else {
-                    candidateAttemptLogs.push(`❌ Versi [${idx + 1}] "${currentVideo.title.slice(0, 30)}...": Video tidak tersedia / proteksi copyright`);
-                    console.log(`[Song] EliteProTech empty downloadUrl on ${cleanShareUrl}`);
-                }
-            } catch (apiErr) {
-                candidateAttemptLogs.push(`❌ Versi [${idx + 1}] "${currentVideo.title.slice(0, 30)}...": Server sibuk`);
-                console.log(`[Song] EliteProTech call error on ${cleanShareUrl}: ${apiErr.message}`);
-            }
-
-            if (candidateDlUrl) {
-                try {
-                    console.log(`[Song] Fetching audio buffer from EliteProTech download URL...`);
-                    const audioResponse = await axios.get(candidateDlUrl, {
-                        responseType: 'arraybuffer',
-                        timeout: 90000,
-                        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*' }
-                    });
-                    let buf = Buffer.from(audioResponse.data);
-                    if (buf && buf.length > 0) {
-                        try { buf = await toAudio(buf, 'mp3'); } catch (convErr) { console.log(`[Song] toAudio failed: ${convErr.message}`); }
-                        audioBuffer = buf;
-                        audioData = { title: candidateTitle };
-                        chosenVideo = currentVideo;
-                        sourcePlatform = `EliteProTech (Versi ${idx + 1})`;
-                        candidateAttemptLogs.push(`✅ Versi [${idx + 1}] "${candidateTitle.slice(0, 30)}...": Berhasil diunduh`);
-                        console.log(`[Song] EliteProTech success with candidate [${idx + 1}]! (${audioBuffer.length} bytes)`);
-                        break; // Berhasil, keluar dari loop candidate
-                    }
-                } catch (dlErr) {
-                    candidateAttemptLogs.push(`❌ Versi [${idx + 1}]: Gagal unduh stream`);
-                    console.log(`[Song] Failed to download audio buffer from candidate [${idx + 1}]: ${dlErr.message}`);
-                }
-            }
-        }
-        } // end if (!audioBuffer) EliteProTech block
-
-        // === FALLBACK: Scrapr-main across candidates ===
-        if (!audioBuffer || audioBuffer.length === 0) {
-            log('youtube', 'FALLBACK', 'EliteProTech failed on all candidates; trying scrapr-main');
-            for (let idx = 0; idx < candidates.length; idx++) {
-                const currentVideo = candidates[idx];
-                try {
-                    console.log(`[Song] Trying scrapr-main fallback on candidate [${idx + 1}/${candidates.length}]: ${currentVideo.url}`);
-                    const fallback = await scrapeUrl('youtube', currentVideo.url, ['mp3']);
-                    const audio = fallback?.downloads?.find(item => /audio|mp3|m4a/i.test(String(item.type || '') + item.url)) || fallback?.downloads?.[0];
-                    if (!audio?.url) continue;
-
-                    let buf = (await downloadBuffer(audio.url, { platform: 'youtube', expectedType: 'audio' })).buffer;
-                    try { buf = await toAudio(buf, 'mp3'); } catch (convErr) { console.log(`[Song] toAudio failed: ${convErr.message}`); }
-                    
-                    audioBuffer = buf;
-                    audioData = { title: fallback.title || currentVideo.title };
-                    chosenVideo = currentVideo;
-                    sourcePlatform = `YouTube Scraper (Versi ${idx + 1})`;
-                    candidateAttemptLogs.push(`✅ Versi [${idx + 1}] via Scraper: Berhasil`);
-                    console.log(`[Song] Scrapr-main fallback succeeded on candidate [${idx + 1}]`);
-                    break;
-                } catch (scErr) {
-                    console.log(`[Song] Scrapr-main failed on candidate [${idx + 1}]: ${scErr.message}`);
-                }
+                const result = await ikyyDL.ytmp3(ytUrl);
+                console.log(`[Song] ikyyxd ytmp3 success: ${result.downloadUrl}`);
+                
+                audioBuffer = await ikyyDL.downloadBuffer(result.downloadUrl, { timeout: 90000, maxSize: 50 * 1024 * 1024 });
+                audioData = { title: result.title || currentVideo.title };
+                chosenVideo = currentVideo;
+                
+                console.log(`[Song] ✓ Downloaded ${audioBuffer.length} bytes from ikyyxd API`);
+                break;
+            } catch (ytErr) {
+                console.log(`[Song] ikyyxd ytmp3 failed on candidate [${idx + 1}]: ${ytErr.message}`);
             }
         }
 
         // Validate buffer
         if (!audioBuffer || audioBuffer.length === 0) {
-            throw new Error('All download sources failed. The content may be unavailable or blocked.');
+            throw new Error('Gagal download audio. Video mungkin tidak tersedia atau diblokir.');
         }
 
-        // Kirim thumbnail & status info yang sesuai dengan versi yang berhasil
+        // Kirim thumbnail & info
         const finalTitle = audioData?.title || chosenVideo?.title || 'YouTube Track';
         const finalThumb = chosenVideo?.thumbnail || (chosenVideo?.videoId ? `https://i.ytimg.com/vi/${chosenVideo.videoId}/hqdefault.jpg` : null);
-        const logSummary = candidateAttemptLogs.length > 1 ? `\n\n📋 *Riwayat Pencarian:*\n${candidateAttemptLogs.join('\n')}` : '';
-        const successCaption = `🎵 *${finalTitle}*\n⏱ Durasi: ${chosenVideo?.timestamp || 'N/A'}\n🌐 Sumber: ${sourcePlatform}${logSummary}`;
+        const successCaption = `🎵 *${finalTitle}*\n⏱ Durasi: ${chosenVideo?.timestamp || 'N/A'}\n🌐 Sumber: ikyyxd API`;
 
         if (finalThumb) {
             try {
@@ -286,10 +215,10 @@ async function songCommand(sock, chatId, message) {
         await sock.sendMessage(chatId, {
             audio: audioBuffer,
             mimetype: 'audio/mpeg',
-            fileName: `${(audioData?.title || chosenVideo?.title || 'song').replace(/[^\w\s-]/g, '')}.mp3`,
+            fileName: `${finalTitle.replace(/[^\w\s-]/g, '')}.mp3`,
             ptt: false
         }, { quoted: message });
-        await sock.sendMessage(chatId, { text: `✅ Selesai! Sumber: ${sourcePlatform}` }, { quoted: message });
+        await sock.sendMessage(chatId, { text: `✅ Selesai!` }, { quoted: message });
 
     } catch (err) {
         console.error('[Song] Command error:', err.message);
