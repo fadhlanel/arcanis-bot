@@ -4,28 +4,10 @@
 
 const { fork } = require('child_process');
 const path = require('path');
+const { findMissingModules } = require('./lib/dependencyCheck');
 
 const WORKER_FILE = path.join(__dirname, 'bot.js');
 const RESTART_EXIT_CODE = 42;
-
-// Dependency inti wajib ada sebelum worker dijalankan. Kalau `npm install` gagal
-// (mis. ERESOLVE di panel), node_modules setengah jadi — berhenti dengan pesan jelas
-// daripada menabrak MODULE_NOT_FOUND berulang.
-const REQUIRED_MODULES = ['dotenv', '@whiskeysockets/baileys', '@xbibzlibrary/whatsbibz'];
-const missingModules = REQUIRED_MODULES.filter((name) => {
-    try {
-        require.resolve(name);
-        return false;
-    } catch {
-        return true;
-    }
-});
-
-if (missingModules.length > 0) {
-    console.error(`[Supervisor] Dependency belum lengkap: ${missingModules.join(', ')}`);
-    console.error('[Supervisor] Jalankan `npm install` sampai sukses, lalu start ulang. Worker tidak dijalankan.');
-    process.exit(1);
-}
 
 let worker = null;
 let shuttingDown = false;
@@ -72,5 +54,16 @@ function forwardSignal(signal) {
 process.on('SIGINT', () => forwardSignal('SIGINT'));
 process.on('SIGTERM', () => forwardSignal('SIGTERM'));
 
-console.log('[Supervisor] Meluncurkan worker bot.js…');
-launchWorker();
+console.log('[Supervisor] Memeriksa dependency…');
+findMissingModules().then((missing) => {
+    if (missing.length > 0) {
+        console.error(`[Supervisor] Dependency belum lengkap: ${missing.join(', ')}`);
+        console.error('[Supervisor] Jalankan `npm install` sampai sukses, lalu start ulang. Worker tidak dijalankan.');
+        process.exit(1);
+    }
+    console.log('[Supervisor] Meluncurkan worker bot.js…');
+    launchWorker();
+}).catch((err) => {
+    console.error(`[Supervisor] Gagal memeriksa dependency: ${err.message}`);
+    process.exit(1);
+});
